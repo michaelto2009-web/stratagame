@@ -1,0 +1,2872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>STRATA // 2.5D Perspective Platformer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js r128 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --theme-accent: #38bdf8;
+            --theme-accent-rgb: 56, 189, 248;
+            --theme-accent-soft: rgba(56, 189, 248, 0.14);
+            --theme-accent-border: rgba(56, 189, 248, 0.38);
+            --theme-bg-panel: rgba(9, 13, 22, 0.82);
+            --theme-border-subtle: rgba(148, 163, 184, 0.16);
+        }
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #05070e;
+            font-family: 'Inter', sans-serif;
+            color: #f1f5f9;
+        }
+        .font-display {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .font-mono-tech {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        #game-canvas-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* Refined Architectural Sci-Fi Telemetry Panels */
+        .hud-panel {
+            background: var(--theme-bg-panel);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid var(--theme-border-subtle);
+            box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.72), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+        }
+        .hud-btn {
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            color: #cbd5e1;
+            transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .hud-btn:hover {
+            background: rgba(30, 41, 59, 0.85);
+            color: #f8fafc;
+            border-color: var(--theme-accent-border);
+            box-shadow: 0 0 14px var(--theme-accent-soft);
+        }
+        .hud-btn:active {
+            transform: translateY(1px);
+        }
+        .level-pill {
+            position: relative;
+            color: #94a3b8;
+            background: transparent;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+        .level-pill:hover {
+            color: #e2e8f0;
+            background: rgba(255, 255, 255, 0.04);
+        }
+        .level-pill.active {
+            background: var(--theme-accent-soft);
+            border-color: var(--theme-accent-border);
+            color: #f8fafc;
+            box-shadow: inset 0 0 12px var(--theme-accent-soft);
+        }
+        .theme-primary-btn {
+            background: linear-gradient(180deg, rgba(var(--theme-accent-rgb), 0.24) 0%, rgba(var(--theme-accent-rgb), 0.12) 100%);
+            border: 1px solid var(--theme-accent);
+            color: #f8fafc;
+            box-shadow: 0 0 24px var(--theme-accent-soft), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transition: all 0.2s ease;
+        }
+        .theme-primary-btn:hover {
+            background: linear-gradient(180deg, rgba(var(--theme-accent-rgb), 0.36) 0%, rgba(var(--theme-accent-rgb), 0.20) 100%);
+            box-shadow: 0 0 30px rgba(var(--theme-accent-rgb), 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+        .theme-accent-text {
+            color: var(--theme-accent);
+        }
+        .theme-accent-bg {
+            background-color: var(--theme-accent);
+        }
+        /* Touch Controls */
+        .touch-btn {
+            background: rgba(9, 13, 22, 0.78);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            touch-action: manipulation;
+        }
+        .touch-btn:active {
+            background: var(--theme-accent-soft);
+            border-color: var(--theme-accent);
+            transform: scale(0.95);
+        }
+        /* Subtle atmospheric vignette */
+        .vignette-overlay {
+            pointer-events: none;
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            background: radial-gradient(circle at center, transparent 60%, rgba(3, 6, 14, 0.68) 100%);
+        }
+    </style>
+</head>
+<body class="relative w-full h-full overflow-hidden">
+
+    <!-- WebGL Canvas Container -->
+    <div id="game-canvas-container"></div>
+    <div class="vignette-overlay"></div>
+
+    <!-- Top Telemetry HUD Bar -->
+    <header class="relative z-10 w-full px-3 sm:px-6 pt-3 sm:pt-4 flex flex-wrap items-center justify-between gap-2.5 pointer-events-none">
+        <!-- Left: Sector Telemetry & Z-Stratum Readout -->
+        <div class="hud-panel rounded-xl px-3.5 py-2 flex items-center gap-3.5 sm:gap-4 pointer-events-auto">
+            <div class="flex items-center gap-2.5">
+                <div id="theme-orb" class="w-2.5 h-2.5 rounded-full theme-accent-bg"></div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono-tech text-[10px] tracking-widest uppercase text-slate-400">STRATA.SYS</span>
+                        <span class="text-[10px] font-mono-tech text-slate-600">//</span>
+                        <span class="font-mono-tech text-[10px] tracking-wider theme-accent-text">BIO-GEL UNIT</span>
+                    </div>
+                    <div id="hud-level-name" class="font-display text-xs sm:text-sm font-bold text-slate-100 tracking-wider">01. NEON CITADEL</div>
+                </div>
+            </div>
+
+            <div class="h-7 w-[1px] bg-slate-800 hidden sm:block"></div>
+
+            <!-- Depth Plane Indicator -->
+            <div class="hidden sm:flex flex-col">
+                <span class="font-mono-tech text-[10px] uppercase tracking-wider text-slate-400">Z-Stratum Plane</span>
+                <div class="flex items-center gap-1.5 mt-0.5">
+                    <span id="hud-depth-badge" class="inline-block w-2 h-2 rounded-full bg-sky-400"></span>
+                    <span id="hud-depth-text" class="font-mono-tech text-xs font-semibold text-slate-200">FOREGROUND [0.0m]</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center: Sector Switcher -->
+        <div class="hud-panel rounded-xl p-1 flex items-center gap-1 pointer-events-auto">
+            <button onclick="game.loadLevel(0)" id="lvl-btn-0" class="level-pill active px-3 py-1.5 rounded-lg text-[11px] font-mono-tech font-semibold tracking-wider">
+                SEC-01
+            </button>
+            <button onclick="game.loadLevel(1)" id="lvl-btn-1" class="level-pill px-3 py-1.5 rounded-lg text-[11px] font-mono-tech font-semibold tracking-wider">
+                SEC-02
+            </button>
+            <button onclick="game.loadLevel(2)" id="lvl-btn-2" class="level-pill px-3 py-1.5 rounded-lg text-[11px] font-mono-tech font-semibold tracking-wider">
+                SEC-03
+            </button>
+        </div>
+
+        <!-- Right: Telemetry Readouts (Cohesion, Crystals, Chrono, Camera/Audio) -->
+        <div class="hud-panel rounded-xl px-3.5 py-2 flex items-center gap-3.5 sm:gap-5 pointer-events-auto">
+            <!-- Gel Cohesion / Integrity -->
+            <div class="flex flex-col">
+                <span class="font-mono-tech text-[10px] uppercase tracking-wider text-slate-400">Cohesion</span>
+                <div id="hud-health" class="flex items-center gap-1.5 mt-1">
+                    <div class="w-4 h-2 rounded-xs theme-accent-bg"></div>
+                    <div class="w-4 h-2 rounded-xs theme-accent-bg"></div>
+                    <div class="w-4 h-2 rounded-xs theme-accent-bg"></div>
+                </div>
+            </div>
+
+            <div class="h-6 w-[1px] bg-slate-800/90"></div>
+
+            <!-- Energy Crystals -->
+            <div class="flex flex-col">
+                <span class="font-mono-tech text-[10px] uppercase tracking-wider text-slate-400">Crystals</span>
+                <div class="flex items-center gap-1.5 mt-0.5">
+                    <svg class="w-3.5 h-3.5 theme-accent-text" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 1l6 9-6 9-6-9 6-9z"/>
+                    </svg>
+                    <span id="hud-shards" class="font-mono-tech text-xs sm:text-sm font-bold text-slate-100">0 / 8</span>
+                </div>
+            </div>
+
+            <!-- Timer -->
+            <div class="hidden md:flex flex-col min-w-[66px]">
+                <span class="font-mono-tech text-[10px] uppercase tracking-wider text-slate-400">Chrono</span>
+                <span id="hud-timer" class="font-mono-tech text-xs sm:text-sm font-semibold text-slate-200 mt-0.5">00:00.0</span>
+            </div>
+
+            <!-- Utility Buttons: Camera Perspective, Audio, Restart -->
+            <div class="flex items-center gap-1.5 border-l border-slate-800 pl-2.5">
+                <button id="btn-cam-mode" onclick="game.cycleCameraAngle()" title="Cycle 3D Perspective Angle" class="hud-btn px-2.5 py-1.5 rounded-lg text-xs font-mono-tech flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 theme-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    <span id="cam-mode-label" class="hidden lg:inline text-[11px]">DYNAMIC 3D</span>
+                </button>
+                <button id="btn-sound" onclick="game.toggleMute()" title="Toggle Audio" class="hud-btn p-1.5 rounded-lg">
+                    <svg id="icon-sound-on" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
+                    </svg>
+                    <svg id="icon-sound-off" class="w-4 h-4 hidden text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
+                    </svg>
+                </button>
+                <button onclick="game.resetLevel()" title="Reset Sector (R)" class="hud-btn p-1.5 rounded-lg">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contextual Prompt Banner (Depth Portal notification) -->
+    <div id="context-toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none transition-all duration-300 opacity-0 -translate-y-2">
+        <div class="hud-panel px-4 py-2 rounded-lg flex items-center gap-2.5" style="border-color: var(--theme-accent-border);">
+            <span class="w-2 h-2 rounded-full theme-accent-bg animate-ping"></span>
+            <span id="context-toast-text" class="font-mono-tech text-xs font-semibold tracking-wider text-slate-100">DEPTH GATE LOCKED // PRESS [E] OR [S] TO PHASE SHIFT</span>
+        </div>
+    </div>
+
+    <!-- Bottom Telemetry & Controls Bar (Desktop) -->
+    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-10 hidden md:flex items-center gap-4 hud-panel px-4 py-2 rounded-xl pointer-events-auto">
+        <div class="flex items-center gap-2 text-xs text-slate-400">
+            <kbd class="px-1.5 py-0.5 bg-slate-900/90 border border-slate-700/80 rounded text-[10px] font-mono-tech text-slate-200">A / D</kbd>
+            <span>Roll / Gel Glide</span>
+        </div>
+        <div class="h-3.5 w-[1px] bg-slate-800"></div>
+        <div class="flex items-center gap-2 text-xs text-slate-400">
+            <kbd class="px-1.5 py-0.5 bg-slate-900/90 border border-slate-700/80 rounded text-[10px] font-mono-tech text-slate-200">SPACE</kbd>
+            <span>Elastic Leap / Wall Bounce</span>
+        </div>
+        <div class="h-3.5 w-[1px] bg-slate-800"></div>
+        <div class="flex items-center gap-2 text-xs text-slate-400">
+            <kbd class="px-1.5 py-0.5 bg-slate-900/90 border border-slate-700/80 rounded text-[10px] font-mono-tech text-slate-200">SHIFT</kbd>
+            <span>Impulse Dash</span>
+            <div class="w-12 h-1.5 bg-slate-900 border border-slate-800 rounded-full overflow-hidden">
+                <div id="dash-cooldown-bar" class="h-full theme-accent-bg w-full transition-all duration-75"></div>
+            </div>
+        </div>
+        <div class="h-3.5 w-[1px] bg-slate-800"></div>
+        <div class="flex items-center gap-2 text-xs text-slate-400">
+            <kbd class="px-1.5 py-0.5 bg-slate-900/90 border border-slate-700/80 rounded text-[10px] font-mono-tech theme-accent-text">E / S</kbd>
+            <span>Z-Depth Gate</span>
+        </div>
+        <div class="h-3.5 w-[1px] bg-slate-800"></div>
+        <div class="flex items-center gap-2 text-xs text-slate-400">
+            <kbd class="px-1.5 py-0.5 bg-slate-900/90 border border-slate-700/80 rounded text-[10px] font-mono-tech text-slate-200">R</kbd>
+            <span>Reset Sector</span>
+        </div>
+        <div class="h-3.5 w-[1px] bg-slate-800"></div>
+        <div class="flex items-center gap-1.5 text-xs text-slate-400">
+            <span>Mouse Drag:</span>
+            <span class="text-slate-200 font-medium">Orbit Tilt</span>
+        </div>
+    </div>
+
+    <!-- Mobile / Tablet On-Screen Touch Controls -->
+    <div class="fixed bottom-4 inset-x-4 z-20 flex md:hidden items-end justify-between pointer-events-none">
+        <!-- D-Pad Left / Right -->
+        <div class="flex items-center gap-2.5 pointer-events-auto">
+            <button id="touch-left" class="touch-btn w-14 h-14 rounded-xl flex items-center justify-center text-slate-100">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <button id="touch-right" class="touch-btn w-14 h-14 rounded-xl flex items-center justify-center text-slate-100">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+        </div>
+
+        <!-- Action Buttons: Depth Shift, Dash, Jump -->
+        <div class="flex items-center gap-2 pointer-events-auto">
+            <button id="touch-depth" class="touch-btn w-12 h-12 rounded-xl flex flex-col items-center justify-center text-slate-200">
+                <span class="font-mono-tech text-[10px] font-bold theme-accent-text">Z-GATE</span>
+            </button>
+            <button id="touch-dash" class="touch-btn w-12 h-12 rounded-xl flex flex-col items-center justify-center text-slate-200">
+                <span class="font-mono-tech text-[10px] font-bold">DASH</span>
+            </button>
+            <button id="touch-jump" class="touch-btn w-16 h-16 rounded-xl flex flex-col items-center justify-center text-white" style="border-color: var(--theme-accent-border);">
+                <span class="font-mono-tech text-xs font-bold theme-accent-text">JUMP</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal Overlay (Sector Briefing / Sector Clear / Complete) -->
+    <div id="modal-overlay" class="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-opacity duration-300">
+        <div class="hud-panel max-w-md w-full mx-4 rounded-2xl p-6 sm:p-8 text-center relative overflow-hidden">
+            <div id="modal-accent-bar" class="absolute top-0 inset-x-0 h-[2px] theme-accent-bg opacity-80"></div>
+
+            <div id="modal-badge" class="inline-flex items-center gap-2 px-3 py-1 rounded-md text-[11px] font-mono-tech font-semibold tracking-wider mb-3" style="background: var(--theme-accent-soft); border: 1px solid var(--theme-accent-border); color: var(--theme-accent);">
+                TELEMETRY ONLINE
+            </div>
+
+            <h1 id="modal-title" class="font-display text-2xl sm:text-3xl font-extrabold text-slate-100 tracking-wide mb-2">
+                01. NEON CITADEL
+            </h1>
+
+            <p id="modal-desc" class="text-xs sm:text-sm text-slate-400 leading-relaxed mb-6">
+                Pilot the soft-body bio-gel core across dual Z-depth architectural strata. Harvest all reachable energy crystals and synchronize with the Ascendant Warp Core.
+            </p>
+
+            <!-- Stats Grid inside Modal (shown on level clear) -->
+            <div id="modal-stats" class="hidden grid-cols-3 gap-2.5 mb-6 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80">
+                <div>
+                    <div class="font-mono-tech text-[10px] uppercase text-slate-500">Chrono</div>
+                    <div id="stat-time" class="font-mono-tech text-sm font-bold text-slate-100 mt-0.5">00:42.5</div>
+                </div>
+                <div>
+                    <div class="font-mono-tech text-[10px] uppercase text-slate-500">Crystals</div>
+                    <div id="stat-shards" class="font-mono-tech text-sm font-bold theme-accent-text mt-0.5">8 / 8</div>
+                </div>
+                <div>
+                    <div class="font-mono-tech text-[10px] uppercase text-slate-500">Evaluation</div>
+                    <div id="stat-rank" class="font-mono-tech text-sm font-bold text-slate-200 mt-0.5">S-RANK</div>
+                </div>
+            </div>
+
+            <!-- Controls hint (hidden on clear/victory) -->
+            <div id="modal-controls" class="mb-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 font-mono-tech text-[10px] tracking-wider text-slate-400">
+                <span><kbd class="px-1 py-0.5 bg-slate-900 border border-slate-700 rounded text-slate-200">A/D</kbd> MOVE</span>
+                <span><kbd class="px-1 py-0.5 bg-slate-900 border border-slate-700 rounded text-slate-200">SPACE</kbd> JUMP ×2 / WALL</span>
+                <span><kbd class="px-1 py-0.5 bg-slate-900 border border-slate-700 rounded text-slate-200">SHIFT</kbd> DASH</span>
+                <span><kbd class="px-1 py-0.5 bg-slate-900 border border-slate-700 rounded theme-accent-text">E/S</kbd> Z-GATE</span>
+                <span><kbd class="px-1 py-0.5 bg-slate-900 border border-slate-700 rounded text-slate-200">R</kbd> RESET</span>
+            </div>
+
+            <!-- Feature highlights on initial start -->
+            <div id="modal-features" class="grid grid-cols-3 gap-2 text-left mb-6">
+                <div class="p-2.5 rounded-lg bg-slate-950/50 border border-slate-800/80">
+                    <div class="font-mono-tech text-[10px] font-bold theme-accent-text mb-0.5">SOFT-BODY GEL</div>
+                    <div class="text-[11px] text-slate-400 leading-tight">Real-time spring-mass vertex physics</div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-slate-950/50 border border-slate-800/80">
+                    <div class="font-mono-tech text-[10px] font-bold text-slate-200 mb-0.5">Z-STRATA</div>
+                    <div class="text-[11px] text-slate-400 leading-tight">Phase between 0m & -8m planes</div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-slate-950/50 border border-slate-800/80">
+                    <div class="font-mono-tech text-[10px] font-bold text-slate-200 mb-0.5">100% VERIFIED</div>
+                    <div class="text-[11px] text-slate-400 leading-tight">All crystals audited & reachable</div>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-2.5 justify-center">
+                <button id="modal-primary-btn" onclick="game.handleModalPrimary()" class="theme-primary-btn w-full py-3 px-6 rounded-xl font-mono-tech font-bold text-xs tracking-widest uppercase">
+                    INITIALIZE SECTOR
+                </button>
+                <button id="modal-secondary-btn" onclick="game.resetLevel()" class="hidden hud-btn py-3 px-5 rounded-xl font-mono-tech font-semibold text-xs tracking-wider uppercase">
+                    REPLAY
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * ============================================================================
+         * STRATA // 2.5D PERSPECTIVE PLATFORMER ENGINE (Three.js r128)
+         * ============================================================================
+         * Anti-Clipping & Depth Precision Architecture:
+         * 1. logarithmicDepthBuffer: true with camera near=0.5, far=220 and shadow normalBias=0.03.
+         * 2. Non-overlapping platform hierarchy:
+         *    - Structural Core Block occupies [y - h/2, y + h/2 - capH - gap]
+         *    - Top Surface Cap occupies [y + h/2 - capH, y + h/2] (0.02m vertical air gap)
+         *    - Neon Rim Strips are offset outward in Z by +0.03m with polygonOffset (-2, -2)
+         *    - Support pillars start strictly below the structural bottom face (-h/2 - 0.03m)
+         * 3. All surface props (Depth Portals, Jump Pads, Checkpoints, Hazards, Goal Gate)
+         *    compute exact platform top surface elevation and mount onto non-overlapping
+         *    base pedestals with positive vertical clearance.
+         * 4. Strict Z-Layer segregation:
+         *    - Foreground Struts: Z = +8.0
+         *    - Foreground Play Stratum: Z = 0.0 (thickness 3.0 -> [-1.5, +1.5])
+         *    - Mid-Depth Portal Tether Rails: Z = -4.0 (length 4.4 -> [-6.2, -1.8])
+         *    - Deep Play Stratum: Z = -8.0 (thickness 3.0 -> [-9.5, -6.5])
+         *    - Background Megastructures: Z = -20.0 to -48.0
+         */
+
+        // --- Procedural Web Audio Synthesizer ---
+        class SoundEffects {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+                // Master gain: every sound routes here, mute/volume in one place
+                if (this.ctx && !this.master) {
+                    this.master = this.ctx.createGain();
+                    this.master.gain.value = 1;
+                    this.master.connect(this.ctx.destination);
+                }
+            }
+
+            setVolume(v) {
+                if (this.master) this.master.gain.value = v;
+            }
+
+            // Low procedural ambience: two detuned saws through a lowpass drone
+            startAmbient() {
+                this.init();
+                if (!this.ctx || this.ambient) return;
+                const now = this.ctx.currentTime;
+                const g = this.ctx.createGain();
+                g.gain.setValueAtTime(0, now);
+                g.gain.linearRampToValueAtTime(0.04, now + 3.0);
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 220;
+                const o1 = this.ctx.createOscillator();
+                o1.type = 'sawtooth';
+                o1.frequency.value = 55;
+                const o2 = this.ctx.createOscillator();
+                o2.type = 'sawtooth';
+                o2.frequency.value = 55.6;
+                o1.connect(filter);
+                o2.connect(filter);
+                filter.connect(g);
+                g.connect(this.master);
+                o1.start(now);
+                o2.start(now);
+                this.ambient = { o1, o2, g };
+            }
+
+            play(type) {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.master);
+
+                if (type === 'jump') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.exponentialRampToValueAtTime(520, now + 0.14);
+                    gain.gain.setValueAtTime(0.16, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                } else if (type === 'doubleJump') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(340, now);
+                    osc.frequency.exponentialRampToValueAtTime(780, now + 0.16);
+                    gain.gain.setValueAtTime(0.18, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.17);
+                    osc.start(now);
+                    osc.stop(now + 0.17);
+                } else if (type === 'jumpPad') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(190, now);
+                    osc.frequency.exponentialRampToValueAtTime(880, now + 0.24);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'dash') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.exponentialRampToValueAtTime(75, now + 0.18);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.19);
+                    osc.start(now);
+                    osc.stop(now + 0.19);
+                } else if (type === 'shard') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(587.33, now);
+                    osc.frequency.setValueAtTime(880, now + 0.07);
+                    osc.frequency.setValueAtTime(1174.66, now + 0.14);
+                    gain.gain.setValueAtTime(0.18, now);
+                    gain.gain.exponentialRampToValueAtTime(0.008, now + 0.32);
+                    osc.start(now);
+                    osc.stop(now + 0.32);
+                } else if (type === 'depthShift') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(160, now);
+                    osc.frequency.exponentialRampToValueAtTime(640, now + 0.22);
+                    osc.frequency.exponentialRampToValueAtTime(280, now + 0.42);
+                    gain.gain.setValueAtTime(0.22, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.44);
+                    osc.start(now);
+                    osc.stop(now + 0.44);
+                } else if (type === 'checkpoint') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.setValueAtTime(554.37, now + 0.09);
+                    osc.frequency.setValueAtTime(659.25, now + 0.18);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.008, now + 0.38);
+                    osc.start(now);
+                    osc.stop(now + 0.38);
+                } else if (type === 'flagFling') {
+                    // spring-loaded cork eject: fast rise, settle
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(240, now);
+                    osc.frequency.exponentialRampToValueAtTime(920, now + 0.09);
+                    osc.frequency.exponentialRampToValueAtTime(520, now + 0.22);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.24);
+                    osc.start(now);
+                    osc.stop(now + 0.24);
+                } else if (type === 'flagUnfurl') {
+                    // cloth whip-crack
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(1400, now);
+                    osc.frequency.exponentialRampToValueAtTime(220, now + 0.13);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.14);
+                    osc.start(now);
+                    osc.stop(now + 0.14);
+                } else if (type === 'hurt') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.linearRampToValueAtTime(55, now + 0.28);
+                    gain.gain.setValueAtTime(0.22, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'win') {
+                    const notes = [523.25, 659.25, 783.99, 1046.50];
+                    notes.forEach((freq, idx) => {
+                        const o = this.ctx.createOscillator();
+                        const g = this.ctx.createGain();
+                        o.type = 'triangle';
+                        o.connect(g);
+                        g.connect(this.master);
+                        o.frequency.setValueAtTime(freq, now + idx * 0.09);
+                        g.gain.setValueAtTime(0.16, now + idx * 0.09);
+                        g.gain.exponentialRampToValueAtTime(0.008, now + idx * 0.09 + 0.45);
+                        o.start(now + idx * 0.09);
+                        o.stop(now + idx * 0.09 + 0.45);
+                    });
+                }
+            }
+        }
+
+        // --- Procedural Architectural Panel & Bump Texture Generator ---
+        function createArchitecturalTextureSet(baseHex, lineHex, isBump = false) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            if (isBump) {
+                ctx.fillStyle = '#808080';
+                ctx.fillRect(0, 0, 256, 256);
+                ctx.strokeStyle = '#404040';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(6, 6, 244, 244);
+                ctx.strokeRect(64, 64, 128, 128);
+                // Rivet dots
+                ctx.fillStyle = '#b0b0b0';
+                const rivets = [[20, 20], [236, 20], [20, 236], [236, 236], [80, 80], [176, 80], [80, 176], [176, 176]];
+                rivets.forEach(([rx, ry]) => {
+                    ctx.beginPath();
+                    ctx.arc(rx, ry, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            } else {
+                const cBase = new THREE.Color(baseHex);
+                const cLine = new THREE.Color(lineHex);
+                ctx.fillStyle = '#' + cBase.getHexString();
+                ctx.fillRect(0, 0, 256, 256);
+
+                // Subtle technical paneling
+                ctx.strokeStyle = '#' + cLine.getHexString();
+                ctx.globalAlpha = 0.24;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(4, 4, 248, 248);
+
+                ctx.globalAlpha = 0.14;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, 128);
+                ctx.lineTo(256, 128);
+                ctx.moveTo(128, 0);
+                ctx.lineTo(128, 256);
+                ctx.stroke();
+
+                ctx.strokeRect(48, 48, 160, 160);
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.anisotropy = 4;
+            return tex;
+        }
+
+        // --- Audited & De-conflicted Level Definitions (100% Reachable Crystals & Open Chimneys) ---
+        const LEVELS = [
+            {
+                id: 0,
+                name: "01. NEON CITADEL",
+                subtitle: "Cyber-Brutalist Monoliths & Dual-Depth Skybridges",
+                parTime: 150,
+                theme: {
+                    cssAccent: "#38bdf8",
+                    cssAccentRgb: "56, 189, 248",
+                    bgHex: 0x060b16,
+                    fogHex: 0x091326,
+                    fogDensity: 0.014,
+                    ambientHex: 0x2a4365,
+                    dirLightHex: 0x7dd3fc,
+                    accentHex: 0x38bdf8,
+                    secondaryHex: 0x818cf8,
+                    platFrontHex: 0x1e293b,
+                    platDeepHex: 0x0f172a,
+                    platTrimFront: 0x38bdf8,
+                    platTrimDeep: 0x818cf8,
+                    hazardHex: 0xf43f5e
+                },
+                spawn: { x: 0, y: 2.5, z: 0 },
+                platforms: [
+                    // Opening promenade (Z=0)
+                    { x: 0, y: 0, w: 9.0, h: 1.5, z: 0 },
+                    // Optional wall-jump tutorial pair: low walls, easily jumpable over,
+                    // a shard above rewards the wall-leap between them
+                    { x: 1.3, y: 2.05, w: 0.6, h: 2.6, z: 0, isWall: true },
+                    { x: 3.7, y: 2.05, w: 0.6, h: 2.6, z: 0, isWall: true },
+                    { x: 8.5, y: 1.5, w: 5.0, h: 1.2, z: 0 },
+                    { x: 16.0, y: 3.2, w: 5.5, h: 1.2, z: 0 },
+                    // Moving elevator lift (x=23.0, top surface oscillates between 2.0 and 8.0)
+                    { x: 23.0, y: 4.5, w: 4.0, h: 1.0, z: 0, moveY: 3.0, speed: 1.8 },
+                    // Upper ledge with Depth Gate to Z = -8
+                    { x: 30.5, y: 7.5, w: 6.5, h: 1.4, z: 0 },
+
+                    // Deep Stratum section (Z = -8)
+                    { x: 30.5, y: 7.5, w: 6.5, h: 1.4, z: -8 },
+                    // Moving horizontal bridge (top surface = 9.6)
+                    { x: 39.0, y: 9.0, w: 4.0, h: 1.2, z: -8, moveX: 2.0, speed: 1.6 },
+                    // Base platform below Wall-Jump Chimney (x spans [44.5, 51.5], top Y = 11.2)
+                    { x: 48.0, y: 10.5, w: 7.0, h: 1.4, z: -8 },
+
+                    // Open-Top Wall-Jump Chimney in Deep Stratum (Z = -8):
+                    // Chimney shaft is X = [46.1, 49.9] (3.8m wide, completely open at the top so player never hits ceiling)
+                    { x: 45.3, y: 15.8, w: 1.6, h: 9.0, z: -8, isWall: true },
+                    { x: 50.7, y: 15.8, w: 1.6, h: 9.0, z: -8, isWall: true },
+                    // Upper Chimney Exit Platform placed cleanly to the right of the shaft (x spans [50.0, 56.5], bottom = 20.4 > 20.3 wall top, top = 21.8)
+                    { x: 53.25, y: 21.1, w: 6.5, h: 1.4, z: -8 },
+
+                    // Return to Foreground Stratum (Z = 0) for finale
+                    { x: 53.25, y: 21.1, w: 6.5, h: 1.4, z: 0 },
+                    // Moving bridge (x=62.5 +/- 2.0 -> spans [58.25, 66.75], top = 21.7)
+                    { x: 62.5, y: 21.1, w: 4.5, h: 1.2, z: 0, moveX: 2.0, speed: 2.0 },
+                    { x: 71.0, y: 22.6, w: 5.5, h: 1.4, z: 0 },
+                    { x: 80.0, y: 24.1, w: 8.0, h: 1.8, z: 0 }
+                ],
+                jumpPads: [
+                    // Mounted on platform (16.0, 3.2, z=0) -> top surface is 3.8
+                    { x: 17.8, surfaceY: 3.8, z: 0, boostVy: 16.2 }
+                ],
+                depthPortals: [
+                    // Mounted on platform (30.5, 7.5) -> top surface is 8.2
+                    { x: 32.0, surfaceY: 8.2, fromZ: 0, toZ: -8 },
+                    // Mounted on upper chimney exit platform (53.25, 21.1) -> top surface is 21.8
+                    { x: 53.25, surfaceY: 21.8, fromZ: -8, toZ: 0 }
+                ],
+                checkpoints: [
+                    { x: 29.0, surfaceY: 8.2, z: 0 },
+                    { x: 48.0, surfaceY: 11.2, z: -8 }, // wall-jump chimney base: failed climbs respawn here
+                    { x: 55.0, surfaceY: 21.8, z: 0 }
+                ],
+                // Audited 100% reachable crystal coordinates
+                shards: [
+                    { x: 2.5, y: 3.6, z: 0 },    // Wall-jump tutorial reward above the early wall pair
+                    { x: 3.2, y: 2.1, z: 0 },    // 1.35m above opening platform (top 0.75)
+                    { x: 8.5, y: 3.5, z: 0 },    // 1.40m above second platform (top 2.1)
+                    { x: 19.8, y: 7.4, z: 0 },   // Directly along Jump Pad launch arc onto elevator
+                    { x: 23.0, y: 8.8, z: 0 },   // 0.8m above moving elevator top apex (8.0)
+                    { x: 39.0, y: 11.1, z: -8 }, // 1.5m above deep moving bridge (top 9.6)
+                    { x: 48.0, y: 14.5, z: -8 }, // Center of open wall-jump shaft (x=48.0) lower climb
+                    { x: 48.0, y: 18.5, z: -8 }, // Center of open wall-jump shaft (x=48.0) upper climb
+                    { x: 62.5, y: 23.2, z: 0 }   // 1.5m above finale moving bridge (top 21.7)
+                ],
+                hazards: [
+                    { x: 15.2, surfaceY: 3.8, z: 0, moveX: 1.2, speed: 2.4 },
+                    { x: 48.0, surfaceY: 11.2, z: -8, moveX: 1.4, speed: 2.4 },
+                    { x: 71.0, surfaceY: 23.3, z: 0, moveX: 1.8, speed: 2.8 }
+                ],
+                // Mounted on goal platform (80.0, 24.1, h=1.8) -> surfaceY = 25.0
+                goal: { x: 82.0, surfaceY: 25.0, z: 0 }
+            },
+            {
+                id: 1,
+                name: "02. SOLAR FOUNDRY",
+                subtitle: "Molten Clockwork Forge & Thermal Pistons",
+                theme: {
+                    cssAccent: "#f59e0b",
+                    cssAccentRgb: "245, 158, 11",
+                    bgHex: 0x140705,
+                    fogHex: 0x240c07,
+                    fogDensity: 0.014,
+                    ambientHex: 0x6b2e1a,
+                    dirLightHex: 0xfbbf24,
+                    accentHex: 0xf59e0b,
+                    secondaryHex: 0xef4444,
+                    platFrontHex: 0x291814,
+                    platDeepHex: 0x1a0e0b,
+                    platTrimFront: 0xf59e0b,
+                    platTrimDeep: 0xef4444,
+                    hazardHex: 0xff2a4b
+                },
+                spawn: { x: 0, y: 2.5, z: 0 },
+                platforms: [
+                    { x: 0, y: 0, w: 8.0, h: 1.5, z: 0 },
+                    { x: 8.5, y: 1.5, w: 4.0, h: 1.2, z: 0, moveY: 2.2, speed: 2.2 },
+                    { x: 16.0, y: 3.5, w: 6.0, h: 1.4, z: 0 },
+                    { x: 24.5, y: 5.0, w: 4.0, h: 1.2, z: 0, moveX: 2.0, speed: 2.2 },
+                    { x: 33.0, y: 6.5, w: 6.5, h: 1.5, z: 0 },
+
+                    // Deep Forge Conveyor (Z = -8)
+                    { x: 33.0, y: 6.5, w: 6.0, h: 1.5, z: -8 },
+                    { x: 41.5, y: 8.5, w: 4.2, h: 1.2, z: -8, moveY: 2.8, speed: 2.3 },
+                    { x: 49.0, y: 11.5, w: 4.2, h: 1.2, z: -8, moveY: -2.4, speed: 2.3 },
+                    { x: 57.5, y: 12.5, w: 7.0, h: 1.5, z: -8 },
+
+                    // Foreground Upper Crucible (Z = 0, x spans [54.25, 60.75], top Y = 13.25)
+                    { x: 57.5, y: 12.5, w: 6.5, h: 1.5, z: 0 },
+
+                    // Open-Top Twin Wall-Jump Towers (Z = 0):
+                    // Chimney shaft is X = [62.6, 66.4] (3.8m wide, completely open at the top)
+                    { x: 61.8, y: 18.5, w: 1.6, h: 10.0, z: 0, isWall: true },
+                    { x: 67.2, y: 19.0, w: 1.6, h: 10.0, z: 0, isWall: true },
+                    // Upper Crucible Exit Platform placed cleanly to the right of the shaft (x spans [66.5, 72.9], bottom = 24.1 > 24.0, top = 25.5)
+                    { x: 69.7, y: 24.8, w: 6.4, h: 1.4, z: 0 },
+
+                    // Final Piston Bridge to Core (x=78.5 +/- 2.0 -> spans [74.4, 82.6], top = 26.1)
+                    { x: 78.5, y: 25.5, w: 4.2, h: 1.2, z: 0, moveX: 2.0, speed: 2.4 },
+                    { x: 88.0, y: 27.0, w: 8.5, h: 1.8, z: 0 }
+                ],
+                jumpPads: [
+                    // Mounted on platform (57.5, 12.5, z=0) -> launches directly into the open wall-jump shaft [62.6, 66.4]
+                    { x: 59.8, surfaceY: 13.25, z: 0, boostVy: 16.5 }
+                ],
+                depthPortals: [
+                    { x: 34.5, surfaceY: 7.25, fromZ: 0, toZ: -8 },
+                    { x: 56.5, surfaceY: 13.25, fromZ: -8, toZ: 0 }
+                ],
+                checkpoints: [
+                    { x: 31.2, surfaceY: 7.25, z: 0 },
+                    { x: 55.2, surfaceY: 13.25, z: 0 },
+                    { x: 70.5, surfaceY: 25.5, z: 0 }
+                ],
+                // Audited 100% reachable crystal coordinates
+                shards: [
+                    { x: 3.0, y: 2.1, z: 0 },     // 1.35m above start platform (top 0.75)
+                    { x: 8.5, y: 4.8, z: 0 },     // Reachable on first vertical piston (top apex 4.3)
+                    { x: 16.0, y: 5.6, z: 0 },    // 1.4m above platform 16.0 (top 4.2)
+                    { x: 24.5, y: 7.0, z: 0 },    // 1.4m above moving bridge 24.5 (top 5.6)
+                    { x: 41.5, y: 12.2, z: -8 },  // Reachable on first deep forge lift (top apex 11.9)
+                    { x: 49.0, y: 14.8, z: -8 },  // Reachable on second deep forge lift (top apex 14.5)
+                    { x: 57.5, y: 14.7, z: -8 },  // 1.45m above deep platform 57.5 (top 13.25)
+                    { x: 64.5, y: 17.5, z: 0 },   // Center of open wall-jump shaft (x=64.5) lower climb
+                    { x: 64.5, y: 21.8, z: 0 },   // Center of open wall-jump shaft (x=64.5) upper climb
+                    { x: 78.5, y: 27.5, z: 0 }    // 1.4m above final piston bridge (top 26.1)
+                ],
+                hazards: [
+                    { x: 16.0, surfaceY: 4.2, z: 0, moveX: 1.8, speed: 2.8 },
+                    { x: 33.0, surfaceY: 7.25, z: -8, moveX: 1.5, speed: 2.6 },
+                    { x: 58.2, surfaceY: 13.25, z: -8, moveX: 1.6, speed: 3.0 },
+                    { x: 86.0, surfaceY: 27.9, z: 0, moveX: 1.8, speed: 3.0 }
+                ],
+                goal: { x: 90.2, surfaceY: 27.9, z: 0 }
+            },
+            {
+                id: 2,
+                name: "03. ASTRAL SINGULARITY",
+                subtitle: "Quantum Void Sanctum & Hyper-Depth Arrays",
+                parTime: 210,
+                theme: {
+                    cssAccent: "#a855f7",
+                    cssAccentRgb: "168, 85, 247",
+                    bgHex: 0x080417,
+                    fogHex: 0x11082b,
+                    fogDensity: 0.013,
+                    ambientHex: 0x4c1d95,
+                    dirLightHex: 0xc084fc,
+                    accentHex: 0xa855f7,
+                    secondaryHex: 0x10b981,
+                    platFrontHex: 0x1e1136,
+                    platDeepHex: 0x110921,
+                    platTrimFront: 0xc084fc,
+                    platTrimDeep: 0x10b981,
+                    hazardHex: 0xf43f5e
+                },
+                spawn: { x: 0, y: 2.5, z: 0 },
+                platforms: [
+                    { x: 0, y: 0, w: 7.5, h: 1.5, z: 0 },
+                    { x: 8.5, y: 2.0, w: 4.0, h: 1.1, z: 0, moveX: 2.0, speed: 2.4 },
+                    { x: 17.5, y: 4.5, w: 5.4, h: 1.2, z: 0 },
+
+                    // First Depth Shift into Deep Quantum Plane (Z = -8)
+                    { x: 17.5, y: 4.5, w: 5.4, h: 1.2, z: -8 },
+                    { x: 25.5, y: 7.0, w: 4.0, h: 1.1, z: -8, moveY: 2.8, speed: 2.4 },
+                    { x: 33.5, y: 10.5, w: 5.5, h: 1.3, z: -8 },
+                    { x: 42.5, y: 12.5, w: 4.2, h: 1.1, z: -8, moveX: 2.0, speed: 2.6 },
+                    { x: 51.0, y: 14.5, w: 6.5, h: 1.3, z: -8 },
+
+                    // Shift back to Z = 0 for vertical ascension (x spans [47.75, 54.25], top Y = 15.15)
+                    { x: 51.0, y: 14.5, w: 6.5, h: 1.3, z: 0 },
+
+                    // Open-Top Ascension Chimney at Z = 0:
+                    // Chimney shaft is X = [49.8, 53.6] (3.8m wide, completely open at the top)
+                    { x: 49.0, y: 20.4, w: 1.6, h: 10.0, z: 0, isWall: true },
+                    { x: 54.4, y: 20.4, w: 1.6, h: 10.0, z: 0, isWall: true },
+                    // Upper Ascension Platform placed cleanly to the right of the shaft (x spans [53.7, 60.1], bottom = 25.5 > 25.4, top = 26.9)
+                    { x: 56.9, y: 26.2, w: 6.4, h: 1.4, z: 0 },
+
+                    // Second Depth Shift at High Altitude (Z = -8)
+                    { x: 56.9, y: 26.2, w: 6.4, h: 1.4, z: -8 },
+                    { x: 65.5, y: 28.6, w: 4.2, h: 1.2, z: -8, moveY: 2.6, speed: 2.6 },
+                    { x: 74.5, y: 31.4, w: 6.0, h: 1.4, z: -8 },
+
+                    // Final Return to Z = 0 Singularity Spire
+                    { x: 74.5, y: 31.4, w: 6.0, h: 1.4, z: 0 },
+                    { x: 83.5, y: 32.9, w: 4.2, h: 1.2, z: 0, moveX: 2.0, speed: 2.8 },
+                    { x: 93.5, y: 34.4, w: 9.0, h: 1.8, z: 0 }
+                ],
+                jumpPads: [
+                    { x: 35.4, surfaceY: 11.15, z: -8, boostVy: 16.2 }
+                ],
+                depthPortals: [
+                    { x: 17.5, surfaceY: 5.1, fromZ: 0, toZ: -8 },
+                    { x: 50.0, surfaceY: 15.15, fromZ: -8, toZ: 0 },
+                    { x: 58.2, surfaceY: 26.9, fromZ: 0, toZ: -8 },
+                    { x: 74.5, surfaceY: 32.1, fromZ: -8, toZ: 0 }
+                ],
+                checkpoints: [
+                    { x: 31.8, surfaceY: 11.15, z: -8 },
+                    { x: 52.8, surfaceY: 15.15, z: 0 },
+                    { x: 72.8, surfaceY: 32.1, z: 0 }
+                ],
+                // Audited 100% reachable crystal coordinates
+                shards: [
+                    { x: 8.5, y: 3.9, z: 0 },     // 1.35m above first moving block (top 2.55)
+                    { x: 19.0, y: 6.5, z: -8 },   // 1.4m above deep platform 17.5 (top 5.1)
+                    { x: 25.5, y: 10.9, z: -8 },  // 0.55m above vertical lift top apex (10.35)
+                    { x: 35.4, y: 14.2, z: -8 },  // Directly in Jump Pad launch trajectory
+                    { x: 42.5, y: 14.4, z: -8 },  // 1.35m above moving block 42.5 (top 13.05)
+                    { x: 51.7, y: 18.2, z: 0 },   // Center of open wall-jump shaft (x=51.7) lower climb
+                    { x: 51.7, y: 22.6, z: 0 },   // Center of open wall-jump shaft (x=51.7) upper climb
+                    { x: 65.5, y: 32.4, z: -8 },  // 0.6m above high-altitude lift apex (31.8)
+                    { x: 83.5, y: 34.9, z: 0 },   // 1.4m above final moving bridge (top 33.5)
+                    { x: 91.0, y: 36.7, z: 0 }    // 1.4m above final goal platform (top 35.3)
+                ],
+                hazards: [
+                    { x: 33.5, surfaceY: 11.15, z: -8, moveX: 1.5, speed: 2.8 },
+                    { x: 56.9, surfaceY: 26.9, z: 0, moveX: 1.5, speed: 2.8 },
+                    { x: 74.5, surfaceY: 32.1, z: -8, moveX: 1.6, speed: 3.0 },
+                    { x: 91.5, surfaceY: 35.3, z: 0, moveX: 2.0, speed: 3.2 }
+                ],
+                goal: { x: 96.0, surfaceY: 35.3, z: 0 }
+            }
+        ];
+
+        // --- Main 2.5D Game Class ---
+        class StrataPlatformer {
+            constructor() {
+                this.container = document.getElementById('game-canvas-container');
+                this.sfx = new SoundEffects();
+
+                // State
+                this.currentLevelIdx = 0;
+                this.isRunning = false;
+                this.modalState = 'intro';
+                this.levelTimer = 0;
+                this.animTime = 0; // accumulated game time: drives platforms/hazards, lag-proof (never wall-clock)
+                this.health = 3;
+                this.maxHealth = 3;
+                this.invulnerableTimer = 0;
+                this.shardsCollected = 0;
+                this.totalShards = 0;
+
+                // Camera perspective presets
+                this.cameraMode = 0;
+                this.mouseParallax = { x: 0, y: 0, targetX: 0, targetY: 0, isDragging: false };
+
+                // Input State
+                this.keys = {
+                    left: false,
+                    right: false,
+                    jump: false,
+                    jumpJustPressed: false,
+                    dashJustPressed: false,
+                    depthJustPressed: false
+                };
+
+                // Player Physics State
+                this.player = {
+                    x: 0,
+                    y: 3,
+                    z: 0,
+                    targetZ: 0,
+                    vx: 0,
+                    vy: 0,
+                    prevVy: 0,
+                    w: 1.15,
+                    h: 1.24,
+                    facing: 1,
+                    onGround: false,
+                    wasOnGround: false,
+                    coyoteTimer: 0,
+                    jumpBufferTimer: 0,
+                    jumpsRemaining: 2,
+                    wallSliding: false,
+                    wallDir: 0,
+                    dashTimer: 0,
+                    dashCooldown: 0,
+                    isPhasingZ: false,
+                    phaseProgress: 0,
+                    phaseStartPos: new THREE.Vector3(),
+                    phaseEndPos: new THREE.Vector3(),
+                    checkpoint: { x: 0, y: 2.5, z: 0 }
+                };
+
+                // Soft-Body Physics State for the Blob Character
+                this.blobPhysics = {
+                    radius: 0.62,
+                    scaleX: 1.0,
+                    scaleY: 1.0,
+                    scaleZ: 1.0,
+                    velScaleX: 0,
+                    velScaleY: 0,
+                    rollAngle: 0,
+                    coreOffset: new THREE.Vector3(),
+                    basePositions: null,
+                    displacements: null,
+                    velocities: null
+                };
+
+                // Scene Collections
+                this.platforms = [];
+                this.jumpPads = [];
+                this.depthPortals = [];
+                this.shards = [];
+                this.hazards = [];
+                this.checkpoints = [];
+                this.activeGlowCheckpoint = null;
+                this.bgStructures = [];
+                this.particles = [];
+                this.dashGhosts = [];
+
+                // Cached HUD refs + health bar cells (built once, toggled thereafter)
+                this.hudEls = {
+                    shards: document.getElementById('hud-shards'),
+                    timer: document.getElementById('hud-timer'),
+                    health: document.getElementById('hud-health'),
+                    dashBar: document.getElementById('dash-cooldown-bar'),
+                    depthText: document.getElementById('hud-depth-text'),
+                    depthBadge: document.getElementById('hud-depth-badge'),
+                };
+                this.healthBars = [];
+                for (let i = 0; i < this.maxHealth; i++) {
+                    const bar = document.createElement('div');
+                    bar.className = 'w-4 h-2 rounded-xs theme-accent-bg transition-all';
+                    this.hudEls.health.appendChild(bar);
+                    this.healthBars.push(bar);
+                }
+
+                // Shared particle/ghost pools: bursts never allocate fresh geometry
+                this.particleGeo = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+                this.particlePool = [];
+                this.ghostGeo = new THREE.SphereGeometry(0.54, 16, 12);
+                this.ghostPool = [];
+
+                // Static Z-plane platform splits (replaces per-frame filter allocation)
+                this.frontPlatforms = [];
+                this.deepPlatforms = [];
+
+                this.initThree();
+                this.initInputs();
+                this.buildPlayerMesh();
+                this.loadLevel(0, true);
+            }
+
+            initThree() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x060b16);
+                this.scene.fog = new THREE.FogExp2(0x091326, 0.014);
+
+                // True 3D Perspective Camera with optimized near=0.5, far=220 for depth buffer precision
+                this.camera = new THREE.PerspectiveCamera(
+                    50,
+                    window.innerWidth / window.innerHeight,
+                    0.5,
+                    220
+                );
+                this.camera.position.set(0, 5, 19);
+
+                // Enable logarithmicDepthBuffer: true to eliminate Z-fighting at all distances and angles
+                this.renderer = new THREE.WebGLRenderer({
+                    antialias: true,
+                    powerPreference: 'high-performance',
+                    logarithmicDepthBuffer: true
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 1.15;
+
+                this.container.appendChild(this.renderer.domElement);
+
+                // Shared bump map texture for crisp non-flickering surface detail
+                this.sharedBumpTex = createArchitecturalTextureSet(0x000000, 0xffffff, true);
+
+                // Lighting Rig
+                this.ambientLight = new THREE.AmbientLight(0x2a4365, 1.35);
+                this.scene.add(this.ambientLight);
+
+                this.hemiLight = new THREE.HemisphereLight(0x93c5fd, 0x0f172a, 0.75);
+                this.scene.add(this.hemiLight);
+
+                this.dirLight = new THREE.DirectionalLight(0x7dd3fc, 1.65);
+                this.dirLight.position.set(18, 35, 22);
+                this.dirLight.castShadow = true;
+                this.dirLight.shadow.mapSize.width = 2048;
+                this.dirLight.shadow.mapSize.height = 2048;
+                this.dirLight.shadow.camera.near = 2;
+                this.dirLight.shadow.camera.far = 110;
+                const d = 38;
+                this.dirLight.shadow.camera.left = -d;
+                this.dirLight.shadow.camera.right = d;
+                this.dirLight.shadow.camera.top = d;
+                this.dirLight.shadow.camera.bottom = -d;
+                // Calibrated shadow bias & normalBias to eliminate shadow acne and self-clipping
+                this.dirLight.shadow.bias = -0.0005;
+                this.dirLight.shadow.normalBias = 0.03;
+                this.scene.add(this.dirLight);
+                this.scene.add(this.dirLight.target);
+
+                // Groups for clean level rebuilding
+                this.worldGroup = new THREE.Group();
+                this.scene.add(this.worldGroup);
+
+                this.fxGroup = new THREE.Group();
+                this.scene.add(this.fxGroup);
+
+                window.addEventListener('resize', () => this.onWindowResize());
+            }
+
+            buildPlayerMesh() {
+                // Real-time 3D Soft-Body Physics Blob Character
+                this.playerGroup = new THREE.Group();
+
+                const radius = this.blobPhysics.radius; // 0.62m -> height = 1.24m
+                const blobGeo = new THREE.IcosahedronGeometry(radius, 5);
+                blobGeo.attributes.position.setUsage(THREE.DynamicDrawUsage);
+                const posAttr = blobGeo.attributes.position;
+                const vCount = posAttr.count;
+
+                this.blobPhysics.basePositions = new Float32Array(vCount * 3);
+                this.blobPhysics.displacements = new Float32Array(vCount);
+                this.blobPhysics.velocities = new Float32Array(vCount);
+
+                for (let i = 0; i < vCount; i++) {
+                    this.blobPhysics.basePositions[i * 3] = posAttr.getX(i);
+                    this.blobPhysics.basePositions[i * 3 + 1] = posAttr.getY(i);
+                    this.blobPhysics.basePositions[i * 3 + 2] = posAttr.getZ(i);
+                }
+
+                // Translucent glossy bio-gel outer shell
+                this.playerShellMat = new THREE.MeshPhysicalMaterial({
+                    color: 0x38bdf8,
+                    emissive: 0x0284c7,
+                    emissiveIntensity: 0.45,
+                    roughness: 0.14,
+                    metalness: 0.05,
+                    clearcoat: 1.0,
+                    clearcoatRoughness: 0.12,
+                    transparent: true,
+                    opacity: 0.84
+                });
+
+                this.blobMesh = new THREE.Mesh(blobGeo, this.playerShellMat);
+                this.blobMesh.castShadow = true;
+                this.blobMesh.receiveShadow = true;
+                this.playerGroup.add(this.blobMesh);
+
+                // Suspended internal nucleus + expressive eyes group (lags with secondary inertia)
+                this.blobInnerGroup = new THREE.Group();
+                this.playerGroup.add(this.blobInnerGroup);
+
+                this.playerCoreMat = new THREE.MeshStandardMaterial({
+                    color: 0xffffff,
+                    emissive: 0x38bdf8,
+                    emissiveIntensity: 2.2,
+                    roughness: 0.2
+                });
+                const nucleusGeo = new THREE.IcosahedronGeometry(0.22, 2);
+                this.blobNucleus = new THREE.Mesh(nucleusGeo, this.playerCoreMat);
+                this.blobInnerGroup.add(this.blobNucleus);
+
+                // Expressive floating eye nodes inside the front hemisphere of the blob
+                const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const pupilMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
+                const eyeGeo = new THREE.SphereGeometry(0.072, 12, 12);
+                const pupilGeo = new THREE.SphereGeometry(0.038, 10, 10);
+
+                this.eyeCluster = new THREE.Group();
+                const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+                leftEye.position.set(0.34, 0.12, 0.16);
+                const leftPupil = new THREE.Mesh(pupilGeo, pupilMat);
+                leftPupil.position.set(0.05, 0, 0.02);
+                leftEye.add(leftPupil);
+
+                const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+                rightEye.position.set(0.34, 0.12, -0.11);
+                const rightPupil = new THREE.Mesh(pupilGeo, pupilMat);
+                rightPupil.position.set(0.05, 0, 0.02);
+                rightEye.add(rightPupil);
+
+                this.eyeCluster.add(leftEye, rightEye);
+                this.blobInnerGroup.add(this.eyeCluster);
+
+                // Dynamic Point Light on Player
+                this.playerLight = new THREE.PointLight(0x38bdf8, 1.8, 11);
+                this.playerLight.position.set(0, 0.3, 1.3);
+                this.playerGroup.add(this.playerLight);
+
+                // Ground Shadow Ring Projection (offset 0.06m above surface with polygonOffset so it never Z-fights)
+                const ringGeo = new THREE.RingGeometry(0.28, 0.48, 28);
+                ringGeo.rotateX(-Math.PI / 2);
+                this.shadowRingMat = new THREE.MeshBasicMaterial({
+                    color: 0x38bdf8,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.72,
+                    depthWrite: false,
+                    polygonOffset: true,
+                    polygonOffsetFactor: -4,
+                    polygonOffsetUnits: -4
+                });
+                this.groundMarker = new THREE.Mesh(ringGeo, this.shadowRingMat);
+                this.scene.add(this.groundMarker);
+
+                this.scene.add(this.playerGroup);
+            }
+
+            // Inject directional radial impulse into the soft-body vertex springs
+            triggerBlobImpulse(dirX, dirY, amplitude = 0.25) {
+                const base = this.blobPhysics.basePositions;
+                const vels = this.blobPhysics.velocities;
+                const r = this.blobPhysics.radius;
+                const count = vels.length;
+
+                // Normalize direction
+                const len = Math.hypot(dirX, dirY) || 1;
+                const nx = dirX / len;
+                const ny = dirY / len;
+
+                for (let i = 0; i < count; i++) {
+                    const bx = base[i * 3] / r;
+                    const by = base[i * 3 + 1] / r;
+                    const bz = base[i * 3 + 2] / r;
+                    const dot = bx * nx + by * ny;
+                    // Quadrupole wave: stretches along impulse axis, compresses perpendicular axis
+                    const wave = (1.5 * dot * dot - 0.5) * amplitude * 14.0;
+                    const ripple = Math.sin((bx * 5 + by * 5 + bz * 5)) * amplitude * 3.5;
+                    vels[i] += wave + ripple;
+                }
+            }
+
+            initInputs() {
+                // Buttons keep focus after click; without this, Space/Enter re-fires the
+                // last clicked button mid-gameplay (e.g. REPLAY silently restarting the sector)
+                document.addEventListener('click', (e) => {
+                    const btn = e.target.closest('button');
+                    if (btn) btn.blur();
+                });
+
+                window.addEventListener('keydown', (e) => {
+                    if (e.repeat) return;
+                    const code = e.code;
+
+                    // Modal keyboard confirm: Space/Enter activates the primary action
+                    const modalOverlay = document.getElementById('modal-overlay');
+                    if (!modalOverlay.classList.contains('opacity-0') && (code === 'Space' || code === 'Enter')) {
+                        e.preventDefault();
+                        this.handleModalPrimary();
+                        return;
+                    }
+
+                    if (code === 'KeyA' || code === 'ArrowLeft') this.keys.left = true;
+                    if (code === 'KeyD' || code === 'ArrowRight') this.keys.right = true;
+                    if (code === 'Space' || code === 'KeyW' || code === 'ArrowUp') {
+                        this.keys.jump = true;
+                        this.keys.jumpJustPressed = true;
+                    }
+                    if (code === 'ShiftLeft' || code === 'ShiftRight' || code === 'KeyK' || code === 'KeyX') {
+                        this.keys.dashJustPressed = true;
+                    }
+                    if (code === 'KeyE' || code === 'KeyS' || code === 'ArrowDown') {
+                        this.keys.depthJustPressed = true;
+                    }
+                    if (code === 'KeyR') {
+                        this.resetLevel();
+                    }
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    const code = e.code;
+                    if (code === 'KeyA' || code === 'ArrowLeft') this.keys.left = false;
+                    if (code === 'KeyD' || code === 'ArrowRight') this.keys.right = false;
+                    if (code === 'Space' || code === 'KeyW' || code === 'ArrowUp') {
+                        this.keys.jump = false;
+                    }
+                });
+
+                // Mouse Drag / Move 3D Perspective Parallax
+                const dom = this.renderer.domElement;
+                dom.addEventListener('mousedown', () => {
+                    this.mouseParallax.isDragging = true;
+                });
+                window.addEventListener('mouseup', () => {
+                    this.mouseParallax.isDragging = false;
+                });
+                window.addEventListener('mousemove', (e) => {
+                    const nx = (e.clientX / window.innerWidth) * 2 - 1;
+                    const ny = (e.clientY / window.innerHeight) * 2 - 1;
+                    if (this.mouseParallax.isDragging) {
+                        this.mouseParallax.targetX = THREE.MathUtils.clamp(nx * 5.5, -5.5, 5.5);
+                        this.mouseParallax.targetY = THREE.MathUtils.clamp(-ny * 3.5, -3.5, 3.5);
+                    } else {
+                        this.mouseParallax.targetX = nx * 1.4;
+                        this.mouseParallax.targetY = -ny * 0.9;
+                    }
+                });
+
+                // Touch Button Bindings
+                const bindTouch = (id, onDown, onUp) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.addEventListener('touchstart', (e) => { e.preventDefault(); onDown(); }, { passive: false });
+                    el.addEventListener('touchend', (e) => { e.preventDefault(); if (onUp) onUp(); }, { passive: false });
+                    el.addEventListener('mousedown', (e) => { e.preventDefault(); onDown(); });
+                    el.addEventListener('mouseup', (e) => { e.preventDefault(); if (onUp) onUp(); });
+                };
+
+                bindTouch('touch-left', () => { this.keys.left = true; }, () => { this.keys.left = false; });
+                bindTouch('touch-right', () => { this.keys.right = true; }, () => { this.keys.right = false; });
+                bindTouch('touch-jump', () => {
+                    this.keys.jump = true;
+                    this.keys.jumpJustPressed = true;
+                }, () => {
+                    this.keys.jump = false;
+                });
+                bindTouch('touch-dash', () => { this.keys.dashJustPressed = true; });
+                bindTouch('touch-depth', () => { this.keys.depthJustPressed = true; });
+            }
+
+            // --- Build & Load Level Geometry with Zero Coplanar Overlaps ---
+            loadLevel(index, showIntroModal = false) {
+                this.currentLevelIdx = index;
+                const lvl = LEVELS[index];
+
+                // Update active pill UI
+                for (let i = 0; i < 3; i++) {
+                    const btn = document.getElementById(`lvl-btn-${i}`);
+                    if (btn) btn.classList.toggle('active', i === index);
+                }
+
+                // Clear previous meshes cleanly
+                while (this.worldGroup.children.length > 0) {
+                    this.worldGroup.remove(this.worldGroup.children[0]);
+                }
+                while (this.fxGroup.children.length > 0) {
+                    this.fxGroup.remove(this.fxGroup.children[0]);
+                }
+
+                this.platforms = [];
+                this.jumpPads = [];
+                this.depthPortals = [];
+                this.shards = [];
+                this.hazards = [];
+                this.checkpoints = [];
+                this.activeGlowCheckpoint = null;
+                this.bgStructures = [];
+                this.particles = [];
+                this.dashGhosts = [];
+
+                // Apply Level Theme
+                const t = lvl.theme;
+                this.scene.background.setHex(t.bgHex);
+                this.scene.fog.color.setHex(t.fogHex);
+                this.scene.fog.density = t.fogDensity;
+                this.ambientLight.color.setHex(t.ambientHex);
+                this.dirLight.color.setHex(t.dirLightHex);
+                this.playerShellMat.color.setHex(t.accentHex);
+                this.playerShellMat.emissive.setHex(t.accentHex);
+                this.playerCoreMat.emissive.setHex(t.accentHex);
+                this.playerLight.color.setHex(t.accentHex);
+                this.shadowRingMat.color.setHex(t.accentHex);
+
+                // Sync CSS Theme Custom Properties for cohesive professional UI
+                document.documentElement.style.setProperty('--theme-accent', t.cssAccent);
+                document.documentElement.style.setProperty('--theme-accent-rgb', t.cssAccentRgb);
+                document.documentElement.style.setProperty('--theme-accent-soft', `rgba(${t.cssAccentRgb}, 0.14)`);
+                document.documentElement.style.setProperty('--theme-accent-border', `rgba(${t.cssAccentRgb}, 0.42)`);
+
+                // Generate crisp procedural textures for this level's palette
+                const frontPanelTex = createArchitecturalTextureSet(t.platFrontHex, t.platTrimFront, false);
+                const deepPanelTex = createArchitecturalTextureSet(t.platDeepHex, t.platTrimDeep, false);
+
+                // Update Top HUD Theme
+                document.getElementById('hud-level-name').textContent = lvl.name;
+                const orb = document.getElementById('theme-orb');
+                orb.style.backgroundColor = t.cssAccent;
+                orb.style.boxShadow = `0 0 10px ${t.cssAccent}`;
+
+                // Reset Player & Stats
+                this.player.checkpoint = { ...lvl.spawn };
+                this.respawnPlayer(true);
+                this.health = this.maxHealth;
+                this.shardsCollected = 0;
+                this.totalShards = lvl.shards.length;
+                this.levelTimer = 0;
+                this.animTime = 0;
+                this.updateHUD();
+
+                // 1. Build Non-Overlapping Platforms (Z=0 Foreground and Z=-8 Deep Stratum)
+                lvl.platforms.forEach((p) => {
+                    const isDeep = p.z < -1;
+                    // Keep Z thickness strictly within [-1.4, +1.4] around plane Z so layers never touch
+                    const depthThickness = p.isWall ? 2.2 : 2.8;
+
+                    const group = new THREE.Group();
+                    group.position.set(p.x, p.y, p.z);
+
+                    const capHeight = 0.16;
+                    const seamGap = 0.02;
+                    const coreHeight = Math.max(0.2, p.h - capHeight - seamGap);
+
+                    // Clone texture to set exact UV tiling per block size without stretching
+                    const blockTex = (isDeep ? deepPanelTex : frontPanelTex).clone();
+                    blockTex.needsUpdate = true;
+                    blockTex.repeat.set(Math.max(1, Math.round(p.w / 2)), Math.max(1, Math.round(coreHeight / 1.5)));
+
+                    // A. Structural Core Block: occupies [-p.h/2, +p.h/2 - capHeight - seamGap]
+                    const coreGeo = new THREE.BoxGeometry(p.w, coreHeight, depthThickness);
+                    const coreMat = new THREE.MeshStandardMaterial({
+                        map: blockTex,
+                        bumpMap: this.sharedBumpTex,
+                        bumpScale: 0.015,
+                        metalness: 0.55,
+                        roughness: 0.38
+                    });
+                    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+                    coreMesh.position.y = -(capHeight + seamGap) / 2;
+                    coreMesh.castShadow = true;
+                    coreMesh.receiveShadow = true;
+                    group.add(coreMesh);
+
+                    // B. Top Surface Cap: sits strictly above core with a 0.02m seam gap, top face at +p.h/2
+                    const capGeo = new THREE.BoxGeometry(p.w, capHeight, depthThickness);
+                    const capMat = new THREE.MeshStandardMaterial({
+                        color: isDeep ? t.platDeepHex : t.platFrontHex,
+                        metalness: 0.65,
+                        roughness: 0.22
+                    });
+                    const capMesh = new THREE.Mesh(capGeo, capMat);
+                    capMesh.position.y = (p.h / 2) - (capHeight / 2);
+                    capMesh.castShadow = true;
+                    capMesh.receiveShadow = true;
+                    group.add(capMesh);
+
+                    // C. Outset Front & Back Neon Rim Strips (0.03m physical gap outside Z faces + polygonOffset)
+                    const trimColor = isDeep ? t.platTrimDeep : t.platTrimFront;
+                    const stripThickness = 0.04;
+                    const stripHeight = 0.09;
+                    const stripGeo = new THREE.BoxGeometry(p.w - 0.08, stripHeight, stripThickness);
+                    const stripMat = new THREE.MeshStandardMaterial({
+                        color: trimColor,
+                        emissive: trimColor,
+                        emissiveIntensity: isDeep ? 0.95 : 1.35,
+                        polygonOffset: true,
+                        polygonOffsetFactor: -2,
+                        polygonOffsetUnits: -2
+                    });
+
+                    const stripY = (p.h / 2) - (capHeight / 2);
+                    const stripZOffset = (depthThickness / 2) + (stripThickness / 2) + 0.03;
+
+                    const frontStrip = new THREE.Mesh(stripGeo, stripMat);
+                    frontStrip.position.set(0, stripY, stripZOffset);
+                    group.add(frontStrip);
+
+                    const backStrip = new THREE.Mesh(stripGeo, stripMat);
+                    backStrip.position.set(0, stripY, -stripZOffset);
+                    group.add(backStrip);
+
+                    // D. Support Pillars extending into the abyss (starts strictly 0.03m below bottom face -p.h/2)
+                    if (!p.moveX && !p.moveY && !p.isWall) {
+                        const pillarH = 26.0;
+                        const pillarGeo = new THREE.BoxGeometry(Math.min(1.1, p.w * 0.32), pillarH, depthThickness * 0.52);
+                        const pillarMat = new THREE.MeshStandardMaterial({
+                            color: isDeep ? 0x090d16 : 0x111827,
+                            metalness: 0.7,
+                            roughness: 0.5
+                        });
+                        const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+                        pillar.position.y = -(p.h / 2) - 0.03 - (pillarH / 2);
+                        pillar.receiveShadow = true;
+                        group.add(pillar);
+                    }
+
+                    this.worldGroup.add(group);
+
+                    this.platforms.push({
+                        mesh: group,
+                        baseX: p.x,
+                        baseY: p.y,
+                        x: p.x,
+                        y: p.y,
+                        z: p.z,
+                        w: p.w,
+                        h: p.h,
+                        moveX: p.moveX || 0,
+                        moveY: p.moveY || 0,
+                        speed: p.speed || 1,
+                        isWall: !!p.isWall,
+                        vx: 0,
+                        vy: 0
+                    });
+                });
+
+                // Static Z-plane splits: collision uses these instead of per-frame filter()
+                this.frontPlatforms = this.platforms.filter(p => p.z > -4);
+                this.deepPlatforms = this.platforms.filter(p => p.z < -4);
+
+                // 2. Build Non-Overlapping Jump Pads (Mounted strictly above platform surfaceY)
+                (lvl.jumpPads || []).forEach((jp) => {
+                    const jpGroup = new THREE.Group();
+                    jpGroup.position.set(jp.x, jp.surfaceY, jp.z);
+
+                    // Pedestal base sits 0.02m above platform top surface
+                    const baseGeo = new THREE.BoxGeometry(1.5, 0.12, 1.5);
+                    const baseMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.3 });
+                    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+                    baseMesh.position.y = 0.08; // spans [0.02, 0.14]
+                    jpGroup.add(baseMesh);
+
+                    // Glowing kinetic emitter plate sits 0.02m above pedestal base
+                    const padGeo = new THREE.BoxGeometry(1.2, 0.08, 1.2);
+                    const padMat = new THREE.MeshStandardMaterial({
+                        color: 0x10b981,
+                        emissive: 0x10b981,
+                        emissiveIntensity: 1.9,
+                        polygonOffset: true,
+                        polygonOffsetFactor: -2,
+                        polygonOffsetUnits: -2
+                    });
+                    const padMesh = new THREE.Mesh(padGeo, padMat);
+                    padMesh.position.y = 0.20; // spans [0.16, 0.24]
+                    jpGroup.add(padMesh);
+
+                    this.worldGroup.add(jpGroup);
+                    this.jumpPads.push({
+                        x: jp.x,
+                        y: jp.surfaceY + 0.20,
+                        z: jp.z,
+                        boostVy: jp.boostVy || 16.2,
+                        padMesh
+                    });
+                });
+
+                // 3. Build Non-Overlapping 3D Z-Depth Phase Portals + Mid-Z Tether Rails
+                lvl.depthPortals.forEach((dp) => {
+                    const ringRadius = 1.05;
+                    const tubeRadius = 0.10;
+                    const pedestalTopOffset = 0.16;
+                    // Center of torus is raised so lowest point of outer ring clears pedestal top by 0.06m
+                    const portalCenterY = dp.surfaceY + pedestalTopOffset + ringRadius + tubeRadius + 0.06;
+
+                    const createPortalArch = (zPos, targetZ) => {
+                        const pGroup = new THREE.Group();
+                        pGroup.position.set(dp.x, portalCenterY, zPos);
+
+                        // Non-overlapping base pedestal mounted on platform surface
+                        const pedGeo = new THREE.BoxGeometry(1.6, 0.14, 1.2);
+                        const pedMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.75, roughness: 0.3 });
+                        const pedMesh = new THREE.Mesh(pedGeo, pedMat);
+                        pedMesh.position.y = (dp.surfaceY + 0.09) - portalCenterY; // spans [surfaceY+0.02, surfaceY+0.16]
+                        pGroup.add(pedMesh);
+
+                        const torusGeo = new THREE.TorusGeometry(ringRadius, tubeRadius, 16, 36);
+                        const torusMat = new THREE.MeshStandardMaterial({
+                            color: 0x22d3ee,
+                            emissive: 0x06b6d4,
+                            emissiveIntensity: 1.8
+                        });
+                        const ring = new THREE.Mesh(torusGeo, torusMat);
+                        pGroup.add(ring);
+
+                        // Inner rotating diamond frame (radius 0.50 < inner torus radius 0.95 -> zero intersection)
+                        const innerGeo = new THREE.OctahedronGeometry(0.50, 0);
+                        const innerMat = new THREE.MeshStandardMaterial({
+                            color: 0xa5f3fc,
+                            emissive: 0x22d3ee,
+                            emissiveIntensity: 1.2,
+                            wireframe: true
+                        });
+                        const inner = new THREE.Mesh(innerGeo, innerMat);
+                        pGroup.add(inner);
+
+                        this.worldGroup.add(pGroup);
+                        return { group: pGroup, ring, inner, x: dp.x, y: portalCenterY, z: zPos, targetZ };
+                    };
+
+                    const portalA = createPortalArch(dp.fromZ, dp.toZ);
+                    const portalB = createPortalArch(dp.toZ, dp.fromZ);
+                    this.depthPortals.push(portalA, portalB);
+
+                    // 3D Tether Guide Rails strictly confined to the mid-Z gap (Z = -1.8 to Z = -6.2, length = 4.4)
+                    // Never enters the Z=0 platform [-1.4, +1.4] or Z=-8 platform [-9.4, -6.6]
+                    const midZ = (dp.fromZ + dp.toZ) / 2;
+                    const safeBridgeLen = Math.max(1.0, Math.abs(dp.toZ - dp.fromZ) - 3.6);
+                    const railGeo = new THREE.BoxGeometry(0.14, 0.08, safeBridgeLen);
+                    const railMat = new THREE.MeshBasicMaterial({
+                        color: 0x22d3ee,
+                        transparent: true,
+                        opacity: 0.5
+                    });
+                    const leftRail = new THREE.Mesh(railGeo, railMat);
+                    leftRail.position.set(dp.x - 0.65, dp.surfaceY + 0.08, midZ);
+                    const rightRail = new THREE.Mesh(railGeo, railMat);
+                    rightRail.position.set(dp.x + 0.65, dp.surfaceY + 0.08, midZ);
+                    this.worldGroup.add(leftRail, rightRail);
+                });
+
+                // 4. Build Non-Overlapping Checkpoints (Socket + Mast + Floating Beacon with air gaps)
+                lvl.checkpoints.forEach((cp) => {
+                    const cpGroup = new THREE.Group();
+                    cpGroup.position.set(cp.x, cp.surfaceY, cp.z);
+
+                    // Base socket: spans [0.02, 0.14] above surfaceY
+                    const baseGeo = new THREE.CylinderGeometry(0.28, 0.34, 0.12, 12);
+                    const poleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8, roughness: 0.25 });
+                    const baseMesh = new THREE.Mesh(baseGeo, poleMat);
+                    baseMesh.position.y = 0.08;
+                    cpGroup.add(baseMesh);
+
+                    // Mast pole: spans [0.16, 1.76] above surfaceY (0.02m gap above base socket)
+                    const poleGeo = new THREE.CylinderGeometry(0.07, 0.10, 1.60, 12);
+                    const pole = new THREE.Mesh(poleGeo, poleMat);
+                    pole.position.y = 0.96;
+                    cpGroup.add(pole);
+
+                    // F. Checkpoint flag mounted straight on the pole (no arm):
+                    // cloth hoist edge hugs the mast, droops limp when untouched;
+                    // on touch the droop springs out ("comes out" from the pole),
+                    // cloth unfurls, then flows in 3D wind
+                    const flagGroup = new THREE.Group();
+                    flagGroup.position.set(0.09, 1.35, 0); // just off the pole surface, upper mast
+
+                    const clothW = 0.95, clothH = 0.58;
+                    const clothGeo = new THREE.PlaneGeometry(clothW, clothH, 14, 8);
+                    // Reposition: x in [0, clothW] out from pole (hoist edge at x=0),
+                    // y centered so the cloth hangs symmetrically
+                    clothGeo.translate(clothW / 2, 0, 0);
+                    clothGeo.attributes.position.setUsage(THREE.DynamicDrawUsage);
+                    const clothMat = new THREE.MeshStandardMaterial({
+                        color: 0x64748b,
+                        emissive: 0x334155,
+                        emissiveIntensity: 0.25,
+                        side: THREE.DoubleSide,
+                        metalness: 0.1,
+                        roughness: 0.6
+                    });
+                    const flagCloth = new THREE.Mesh(clothGeo, clothMat);
+                    flagCloth.scale.x = 0.55; // bunched drape while untouched
+                    flagCloth.castShadow = true;
+                    flagGroup.add(flagCloth);
+
+                    cpGroup.add(flagGroup);
+
+                    this.worldGroup.add(cpGroup);
+                    this.checkpoints.push({
+                        x: cp.x,
+                        y: cp.surfaceY + 1.0,
+                        z: cp.z,
+                        activated: false,
+                        flagGroup,
+                        flagCloth,
+                        flagClothMat: clothMat,
+                        flagClothGeo: clothGeo,
+                        flagBasePos: clothGeo.attributes.position.array.slice(),
+                        flagState: 'idle', // idle | rise | unfurl | wave
+                        flagT: 0,
+                        flagDroop: 1.0,     // 1 = limp, 0 = flying
+                        flagDroopVel: 0,
+                        flagWhip: 0,        // activation whip energy, decays
+                        flagUnfurl: 0.55,
+                        flagGlowing: false,
+                        flagGlowLight: null
+                    });
+                });
+
+                // 5. Build Collectible Energy Shards
+                lvl.shards.forEach((s) => {
+                    const sGroup = new THREE.Group();
+                    sGroup.position.set(s.x, s.y, s.z);
+
+                    const crystalGeo = new THREE.OctahedronGeometry(0.42, 0);
+                    const crystalMat = new THREE.MeshStandardMaterial({
+                        color: 0xfbbf24,
+                        emissive: 0xf59e0b,
+                        emissiveIntensity: 1.6,
+                        metalness: 0.3,
+                        roughness: 0.1
+                    });
+                    const crystal = new THREE.Mesh(crystalGeo, crystalMat);
+                    crystal.scale.set(0.85, 1.35, 0.85);
+                    sGroup.add(crystal);
+
+                    this.worldGroup.add(sGroup);
+                    this.shards.push({
+                        group: sGroup,
+                        crystal,
+                        baseX: s.x,
+                        baseY: s.y,
+                        x: s.x,
+                        y: s.y,
+                        pullX: 0,   // magnetic offset, decays back to 0
+                        pullY: 0,
+                        z: s.z,
+                        collected: false
+                    });
+                });
+
+                // 6. Build Non-Overlapping Patrol Hazards (Hovering 0.24m clear of platform top surface)
+                lvl.hazards.forEach((h) => {
+                    const hoverCenterY = h.surfaceY + 0.94;
+                    const hGroup = new THREE.Group();
+                    hGroup.position.set(h.x, hoverCenterY, h.z);
+
+                    // Inner Core (radius 0.44)
+                    const coreGeo = new THREE.OctahedronGeometry(0.44, 1);
+                    const coreMat = new THREE.MeshStandardMaterial({
+                        color: t.hazardHex,
+                        emissive: t.hazardHex,
+                        emissiveIntensity: 1.7
+                    });
+                    const core = new THREE.Mesh(coreGeo, coreMat);
+                    hGroup.add(core);
+
+                    // Outer Gyro Ring (inner radius = 0.64 - 0.06 = 0.58 > 0.44 core; outer radius = 0.70 -> bottom at surfaceY + 0.24)
+                    const ringGeo = new THREE.TorusGeometry(0.64, 0.06, 10, 24);
+                    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                    const ring = new THREE.Mesh(ringGeo, ringMat);
+                    hGroup.add(ring);
+
+                    this.worldGroup.add(hGroup);
+                    this.hazards.push({
+                        group: hGroup,
+                        core,
+                        ring,
+                        baseX: h.x,
+                        x: h.x,
+                        y: hoverCenterY,
+                        z: h.z,
+                        moveX: h.moveX || 0,
+                        speed: h.speed || 2
+                    });
+                });
+
+                // 7. Build Non-Overlapping Ascendant Goal Gate (Pedestal + Concentric Clearance Rings)
+                const goalSurfaceY = lvl.goal.surfaceY;
+                const outerRadius = 1.50;
+                const outerTube = 0.14;
+                const goalCenterY = goalSurfaceY + 0.22 + outerRadius + outerTube + 0.08;
+
+                this.goalGroup = new THREE.Group();
+                this.goalGroup.position.set(lvl.goal.x, goalCenterY, lvl.goal.z);
+
+                // Goal Base Pedestal: spans [goalSurfaceY + 0.02, goalSurfaceY + 0.22]
+                const goalPedGeo = new THREE.BoxGeometry(2.4, 0.20, 1.6);
+                const goalPedMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.25 });
+                const goalPed = new THREE.Mesh(goalPedGeo, goalPedMat);
+                goalPed.position.y = (goalSurfaceY + 0.12) - goalCenterY;
+                this.goalGroup.add(goalPed);
+
+                const outerRingGeo = new THREE.TorusGeometry(outerRadius, outerTube, 16, 48);
+                const outerRingMat = new THREE.MeshStandardMaterial({
+                    color: t.accentHex,
+                    emissive: t.accentHex,
+                    emissiveIntensity: 2.0
+                });
+                this.goalOuterRing = new THREE.Mesh(outerRingGeo, outerRingMat);
+                this.goalGroup.add(this.goalOuterRing);
+
+                // Inner Ring: outer radius = 0.98 + 0.09 = 1.07 < outerRing inner radius (1.50 - 0.14 = 1.36) -> zero collision
+                const innerRingGeo = new THREE.TorusGeometry(0.98, 0.09, 16, 36);
+                const innerRingMat = new THREE.MeshStandardMaterial({
+                    color: 0xffffff,
+                    emissive: t.secondaryHex,
+                    emissiveIntensity: 1.8
+                });
+                this.goalInnerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
+                this.goalGroup.add(this.goalInnerRing);
+
+                const goalLight = new THREE.PointLight(t.accentHex, 2.5, 16);
+                this.goalGroup.add(goalLight);
+                this.worldGroup.add(this.goalGroup);
+                this.goalPos = { x: lvl.goal.x, y: goalCenterY, z: lvl.goal.z };
+
+                // 8. Build Strictly Z-Segregated Background & Foreground Megastructures
+                this.buildEnvironmentDepthScenery(index, t);
+
+                if (showIntroModal) {
+                    this.showModal('intro');
+                } else {
+                    this.hideModal();
+                    this.isRunning = true;
+                }
+            }
+
+            buildEnvironmentDepthScenery(levelIdx, theme) {
+                // Deep Background Megastructures strictly at Z = -22 to -48 (well clear of Z = -8 play plane)
+                const bgMat = new THREE.MeshStandardMaterial({
+                    color: theme.platDeepHex,
+                    metalness: 0.65,
+                    roughness: 0.42
+                });
+                const glowMat = new THREE.MeshBasicMaterial({
+                    color: theme.accentHex,
+                    transparent: true,
+                    opacity: 0.58,
+                    polygonOffset: true,
+                    polygonOffsetFactor: -2,
+                    polygonOffsetUnits: -2
+                });
+                const secGlowMat = new THREE.MeshBasicMaterial({
+                    color: theme.secondaryHex,
+                    transparent: true,
+                    opacity: 0.48,
+                    polygonOffset: true,
+                    polygonOffsetFactor: -2,
+                    polygonOffsetUnits: -2
+                });
+
+                for (let i = -2; i < 22; i++) {
+                    // Deterministic non-overlapping X spacing (6.0m stride, max width 3.2m)
+                    const xPos = i * 6.0;
+                    const zPos = -22 - ((i * 7) % 24);
+                    const height = 30 + ((i * 11) % 32);
+                    const width = 2.2 + ((i * 3) % 3) * 0.45;
+
+                    const structGroup = new THREE.Group();
+                    structGroup.position.set(xPos, height * 0.22 - 10, zPos);
+
+                    if (levelIdx === 0) {
+                        // Level 1: Cyber-Brutalist Monolith Towers with surface-offset front neon strip
+                        const towerGeo = new THREE.BoxGeometry(width, height, width);
+                        const tower = new THREE.Mesh(towerGeo, bgMat);
+                        tower.receiveShadow = true;
+                        structGroup.add(tower);
+
+                        // Strip mounted strictly outside front (+Z) face of monolith (width/2 + 0.05m)
+                        const stripGeo = new THREE.BoxGeometry(0.22, height * 0.82, 0.06);
+                        const strip = new THREE.Mesh(stripGeo, i % 2 === 0 ? glowMat : secGlowMat);
+                        strip.position.z = (width / 2) + 0.05;
+                        structGroup.add(strip);
+                    } else if (levelIdx === 1) {
+                        // Level 2: Solar Foundry Furnace Columns & Non-Intersecting Outer Clockwork Rings
+                        const colGeo = new THREE.CylinderGeometry(width * 0.45, width * 0.55, height, 12);
+                        const col = new THREE.Mesh(colGeo, bgMat);
+                        structGroup.add(col);
+
+                        if (i % 2 === 0) {
+                            // Inner radius (width*1.35 - 0.28) > column radius (width*0.55) -> never touches column
+                            const gearGeo = new THREE.TorusGeometry(width * 1.35, 0.28, 8, 16);
+                            const gear = new THREE.Mesh(gearGeo, glowMat);
+                            gear.position.y = (i % 5) * 3.5;
+                            structGroup.add(gear);
+                            this.bgStructures.push({ mesh: gear, rotSpeedZ: (i % 4 === 0 ? 1 : -1) * 0.35 });
+                        }
+                    } else {
+                        // Level 3: Astral Singularity Floating Octahedrons & Non-Intersecting Orbital Gyroscopes
+                        const octRadius = width * 0.95;
+                        const octGeo = new THREE.OctahedronGeometry(octRadius, 0);
+                        const oct = new THREE.Mesh(octGeo, bgMat);
+                        oct.position.y = (i % 6) * 4.5;
+                        structGroup.add(oct);
+
+                        // Orbit inner radius (width*1.55 - 0.10) > octRadius (width*0.95) -> zero mesh intersection
+                        const orbitGeo = new THREE.TorusGeometry(width * 1.55, 0.10, 10, 32);
+                        const orbit = new THREE.Mesh(orbitGeo, i % 2 === 0 ? glowMat : secGlowMat);
+                        orbit.position.y = oct.position.y;
+                        structGroup.add(orbit);
+
+                        this.bgStructures.push({ mesh: oct, rotSpeedY: 0.45, rotSpeedX: 0.2 });
+                        this.bgStructures.push({ mesh: orbit, rotSpeedX: 0.6, rotSpeedY: -0.4 });
+                    }
+
+                    this.worldGroup.add(structGroup);
+                }
+
+                // Foreground Framing Struts at Z = +8.0 (cap mounted strictly 0.02m above pylon top)
+                for (let i = 0; i < 11; i++) {
+                    const fgX = i * 9.5;
+                    const fgGroup = new THREE.Group();
+                    fgGroup.position.set(fgX, -9.8, 8.0);
+
+                    const pylonGeo = new THREE.BoxGeometry(0.85, 12.0, 0.85);
+                    const pylon = new THREE.Mesh(pylonGeo, bgMat);
+                    fgGroup.add(pylon); // top face at +6.0
+
+                    const capGeo = new THREE.BoxGeometry(1.05, 0.24, 1.05);
+                    const cap = new THREE.Mesh(capGeo, glowMat);
+                    cap.position.y = 6.0 + 0.02 + 0.12; // bottom face at +6.02
+                    fgGroup.add(cap);
+
+                    this.worldGroup.add(fgGroup);
+                }
+
+                // 3D Floating Atmospheric Dust Motes
+                const particleCount = 240;
+                const posArray = new Float32Array(particleCount * 3);
+                for (let i = 0; i < particleCount; i++) {
+                    posArray[i * 3] = (Math.random() - 0.1) * 110;
+                    posArray[i * 3 + 1] = (Math.random() - 0.2) * 50;
+                    posArray[i * 3 + 2] = -12 - Math.random() * 22;
+                }
+                const partGeo = new THREE.BufferGeometry();
+                partGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+                const partMat = new THREE.PointsMaterial({
+                    color: theme.accentHex,
+                    size: 0.24,
+                    transparent: true,
+                    opacity: 0.65,
+                    depthWrite: false
+                });
+                this.ambientParticles = new THREE.Points(partGeo, partMat);
+                this.worldGroup.add(this.ambientParticles);
+            }
+
+            respawnPlayer(fullReset = false) {
+                const cp = this.player.checkpoint;
+                this.player.x = cp.x;
+                this.player.y = cp.y;
+                this.player.z = cp.z;
+                this.player.targetZ = cp.z;
+                this.player.vx = 0;
+                this.player.vy = 0;
+                this.player.prevVy = 0;
+                this.player.onGround = false;
+                this.player.wasOnGround = false;
+                this.player.isPhasingZ = false;
+                this.player.dashTimer = 0;
+                this.blobPhysics.scaleX = 1.0;
+                this.blobPhysics.scaleY = 1.0;
+                this.blobPhysics.scaleZ = 1.0;
+                this.blobPhysics.velScaleX = 0;
+                this.blobPhysics.velScaleY = 0;
+                if (this.blobPhysics.displacements) {
+                    this.blobPhysics.displacements.fill(0);
+                    this.blobPhysics.velocities.fill(0);
+                }
+                this.UpdateDepthStratumUI();
+
+                if (!fullReset) {
+                    this.triggerBlobImpulse(0, 1, 0.35);
+                    this.spawnBurstParticles(this.player.x, this.player.y, this.player.z, LEVELS[this.currentLevelIdx].theme.accentHex, 18);
+                }
+            }
+
+            resetLevel() {
+                this.sfx.init();
+                this.loadLevel(this.currentLevelIdx, false);
+            }
+
+            // --- Particle & Visual Effects ---
+            spawnBurstParticles(x, y, z, colorHex, count = 14) {
+                for (let i = 0; i < count; i++) {
+                    let p = this.particlePool.pop();
+                    if (!p) {
+                        p = { mesh: new THREE.Mesh(this.particleGeo, new THREE.MeshBasicMaterial({ transparent: true })) };
+                    }
+                    p.mesh.material.color.setHex(colorHex);
+                    p.mesh.material.opacity = 1;
+                    p.mesh.position.set(x, y, z);
+                    if (!p.mesh.parent) this.fxGroup.add(p.mesh);
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 1.5 + Math.random() * 5.5;
+                    this.particles.push({
+                        mesh: p.mesh,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed + 1.5,
+                        vz: (Math.random() - 0.5) * 4,
+                        life: 0.45 + Math.random() * 0.25,
+                        maxLife: 0.7
+                    });
+                }
+            }
+
+            spawnDashGhost() {
+                let g = this.ghostPool.pop();
+                if (!g) {
+                    g = { mesh: new THREE.Mesh(this.ghostGeo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false })) };
+                }
+                g.mesh.material.color.setHex(LEVELS[this.currentLevelIdx].theme.accentHex);
+                g.mesh.material.opacity = 0.42;
+                g.mesh.scale.set(this.blobPhysics.scaleX, this.blobPhysics.scaleY, this.blobPhysics.scaleZ);
+                // Offset ghost slightly in Z (-0.08m) so it never shares faces with the live player mesh
+                g.mesh.position.set(this.player.x, this.player.y, this.player.z - 0.08);
+                if (!g.mesh.parent) this.fxGroup.add(g.mesh);
+                g.life = 0.22;
+                this.dashGhosts.push(g);
+            }
+
+            // --- Core Physics & Gameplay Update ---
+            update(dt) {
+                dt = Math.min(dt, 0.033);
+                const time = performance.now() * 0.001;
+                this.lastDt = dt;
+
+                // Animate Background 3D Megastructures
+                this.bgStructures.forEach((b) => {
+                    if (b.rotSpeedZ) b.mesh.rotation.z += b.rotSpeedZ * dt;
+                    if (b.rotSpeedY) b.mesh.rotation.y += b.rotSpeedY * dt;
+                    if (b.rotSpeedX) b.mesh.rotation.x += b.rotSpeedX * dt;
+                });
+
+                if (this.ambientParticles) {
+                    this.ambientParticles.rotation.y = Math.sin(time * 0.15) * 0.04;
+                }
+
+                // Update Active Particles & Dash Ghosts (dead ones return to the pool)
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.life -= dt;
+                    if (p.life <= 0) {
+                        this.fxGroup.remove(p.mesh);
+                        this.particlePool.push(p);
+                        this.particles.splice(i, 1);
+                    } else {
+                        p.mesh.position.x += p.vx * dt;
+                        p.mesh.position.y += p.vy * dt;
+                        p.mesh.position.z += p.vz * dt;
+                        p.vy -= 9.8 * dt;
+                        p.mesh.rotation.x += 6 * dt;
+                        p.mesh.rotation.y += 6 * dt;
+                        p.mesh.material.opacity = p.life / p.maxLife;
+                    }
+                }
+
+                for (let i = this.dashGhosts.length - 1; i >= 0; i--) {
+                    const g = this.dashGhosts[i];
+                    g.life -= dt;
+                    if (g.life <= 0) {
+                        this.fxGroup.remove(g.mesh);
+                        this.ghostPool.push(g);
+                        this.dashGhosts.splice(i, 1);
+                    } else {
+                        g.mesh.material.opacity = (g.life / 0.24) * 0.5;
+                        g.mesh.scale.multiplyScalar(0.95);
+                    }
+                }
+
+                // Checkpoint flags animate even behind modal overlays
+                this.updateCheckpointFlags(dt, time);
+
+                if (!this.isRunning) {
+                    this.updateCamera(dt);
+                    this.consumeOneShotInputs();
+                    return;
+                }
+
+                this.levelTimer += dt;
+                this.animTime += dt; // clamped dt: lag slows motion instead of teleporting it
+                if (this.invulnerableTimer > 0) this.invulnerableTimer -= dt;
+
+                // 1. Update Moving Platforms
+                this.platforms.forEach((plat) => {
+                    const prevX = plat.x;
+                    const prevY = plat.y;
+                    // animTime (accumulated clamped dt), never wall clock: lag spikes
+                    // can slow the game but can never teleport platforms mid-physics
+                    if (plat.moveX) {
+                        plat.x = plat.baseX + Math.sin(this.animTime * plat.speed) * plat.moveX;
+                    }
+                    if (plat.moveY) {
+                        plat.y = plat.baseY + Math.sin(this.animTime * plat.speed) * plat.moveY;
+                    }
+                    // Guard dt=0 (double rAF tick): NaN/Infinity velocity here would
+                    // poison the ground-carry and drop the player through the world
+                    const safeDt = Math.max(dt, 0.0001);
+                    plat.vx = (plat.x - prevX) / safeDt;
+                    plat.vy = (plat.y - prevY) / safeDt;
+                    plat.mesh.position.set(plat.x, plat.y, plat.z);
+                });
+
+                // 2. Handle 3D Z-Depth Phase Transfer Arc
+                if (this.player.isPhasingZ) {
+                    this.player.phaseProgress += dt * 2.6;
+                    if (this.player.phaseProgress >= 1) {
+                        this.player.isPhasingZ = false;
+                        this.player.x = this.player.phaseEndPos.x;
+                        this.player.y = this.player.phaseEndPos.y;
+                        this.player.z = this.player.phaseEndPos.z;
+                        this.player.targetZ = this.player.z;
+                        this.player.vx = 0;
+                        this.player.vy = 0;
+                        this.UpdateDepthStratumUI();
+                        this.spawnBurstParticles(this.player.x, this.player.y, this.player.z, 0x22d3ee, 16);
+                    } else {
+                        const t = this.player.phaseProgress;
+                        const smoothT = t * t * (3 - 2 * t);
+                        this.player.x = THREE.MathUtils.lerp(this.player.phaseStartPos.x, this.player.phaseEndPos.x, smoothT);
+                        this.player.z = THREE.MathUtils.lerp(this.player.phaseStartPos.z, this.player.phaseEndPos.z, smoothT);
+                        const baseY = THREE.MathUtils.lerp(this.player.phaseStartPos.y, this.player.phaseEndPos.y, smoothT);
+                        this.player.y = baseY + Math.sin(t * Math.PI) * 2.6;
+                        if (Math.random() < 0.5) this.spawnDashGhost();
+                    }
+                    this.syncPlayerMesh(time);
+                    this.updateCamera(dt);
+                    this.updateHUD();
+                    this.consumeOneShotInputs();
+                    return;
+                }
+
+                // 3. Check Proximity to Depth Portals
+                let nearbyPortal = null;
+                for (const dp of this.depthPortals) {
+                    dp.ring.rotation.z += 1.5 * dt;
+                    dp.inner.rotation.x += 2.2 * dt;
+                    dp.inner.rotation.y += 1.8 * dt;
+
+                    if (Math.abs(dp.z - this.player.z) < 0.8) {
+                        const dist = Math.hypot(dp.x - this.player.x, dp.y - this.player.y);
+                        if (dist < 2.1) {
+                            nearbyPortal = dp;
+                        }
+                    }
+                }
+
+                const toastEl = document.getElementById('context-toast');
+                if (nearbyPortal) {
+                    toastEl.classList.remove('opacity-0', '-translate-y-2');
+                    toastEl.classList.add('opacity-100', 'translate-y-0');
+                    if (this.keys.depthJustPressed) {
+                        this.sfx.play('depthShift');
+                        this.player.isPhasingZ = true;
+                        this.player.phaseProgress = 0;
+                        this.player.phaseStartPos.set(this.player.x, this.player.y, this.player.z);
+                        this.player.phaseEndPos.set(nearbyPortal.x, nearbyPortal.y, nearbyPortal.targetZ);
+                        this.triggerBlobImpulse(0, 1, 0.42);
+                        this.consumeOneShotInputs();
+                        return;
+                    }
+                } else {
+                    toastEl.classList.add('opacity-0', '-translate-y-2');
+                    toastEl.classList.remove('opacity-100', 'translate-y-0');
+                }
+
+                // 4. Player Horizontal Movement & Phase Dash
+                if (this.player.dashCooldown > 0) this.player.dashCooldown -= dt;
+
+                if (this.keys.dashJustPressed && this.player.dashCooldown <= 0 && this.player.dashTimer <= 0) {
+                    this.sfx.play('dash');
+                    this.player.dashTimer = 0.17;
+                    this.player.dashCooldown = 0.65;
+                    const moveDir = (this.keys.right ? 1 : 0) - (this.keys.left ? 1 : 0);
+                    if (moveDir !== 0) this.player.facing = moveDir;
+                    this.player.vx = this.player.facing * 22.5;
+                    this.player.vy = 0;
+                    // Volume-preserving horizontal stretch impulse on dash
+                    this.blobPhysics.velScaleX += 4.2;
+                    this.blobPhysics.velScaleY -= 2.8;
+                    this.triggerBlobImpulse(this.player.facing, 0, 0.45);
+                    this.spawnBurstParticles(this.player.x, this.player.y, this.player.z, LEVELS[this.currentLevelIdx].theme.accentHex, 10);
+                }
+
+                if (this.player.dashTimer > 0) {
+                    this.player.dashTimer -= dt;
+                    this.player.vy = 0;
+                    if (Math.random() < 0.65) this.spawnDashGhost();
+                } else {
+                    const moveInput = (this.keys.right ? 1 : 0) - (this.keys.left ? 1 : 0);
+                    const maxSpeed = 9.6;
+                    const accel = this.player.onGround ? 68 : 42;
+                    const friction = this.player.onGround ? 55 : 18;
+
+                    if (moveInput !== 0) {
+                        this.player.facing = moveInput;
+                        this.player.vx += moveInput * accel * dt;
+                        this.player.vx = THREE.MathUtils.clamp(this.player.vx, -maxSpeed, maxSpeed);
+                    } else {
+                        if (Math.abs(this.player.vx) < friction * dt) {
+                            this.player.vx = 0;
+                        } else {
+                            this.player.vx -= Math.sign(this.player.vx) * friction * dt;
+                        }
+                    }
+
+                    // Gravity & Wall Slide
+                    let gravity = -29.0;
+                    if (this.player.wallSliding && this.player.vy < 0) {
+                        gravity = -9.0;
+                    }
+                    this.player.vy += gravity * dt;
+                    this.player.vy = Math.max(this.player.vy, -24);
+
+                    if (!this.keys.jump && this.player.vy > 4.5) {
+                        this.player.vy *= 0.88;
+                    }
+                }
+
+                // 5. Coyote Time & Jump Buffering
+                if (this.player.onGround) {
+                    this.player.coyoteTimer = 0.11;
+                    this.player.jumpsRemaining = 2;
+                } else {
+                    this.player.coyoteTimer -= dt;
+                }
+
+                if (this.keys.jumpJustPressed) {
+                    this.player.jumpBufferTimer = 0.12;
+                } else {
+                    this.player.jumpBufferTimer -= dt;
+                }
+
+                // Execute Jump / Wall Leap / Double Jump
+                if (this.player.jumpBufferTimer > 0) {
+                    if (this.player.coyoteTimer > 0) {
+                        this.player.vy = 13.5;
+                        this.player.onGround = false;
+                        this.player.coyoteTimer = 0;
+                        this.player.jumpBufferTimer = 0;
+                        this.player.jumpsRemaining = 1;
+                        this.blobPhysics.velScaleY += 3.8;
+                        this.blobPhysics.velScaleX -= 2.4;
+                        this.triggerBlobImpulse(0, 1, 0.36);
+                        this.sfx.play('jump');
+                        this.spawnBurstParticles(this.player.x, this.player.y - 0.55, this.player.z, LEVELS[this.currentLevelIdx].theme.accentHex, 8);
+                    } else if (this.player.wallSliding) {
+                        this.player.vy = 13.4;
+                        this.player.vx = -this.player.wallDir * 11.5;
+                        this.player.facing = -this.player.wallDir;
+                        this.player.wallSliding = false;
+                        this.player.jumpBufferTimer = 0;
+                        this.player.jumpsRemaining = 1;
+                        this.blobPhysics.velScaleY += 3.5;
+                        this.triggerBlobImpulse(-this.player.wallDir, 0.8, 0.40);
+                        this.sfx.play('doubleJump');
+                        this.spawnBurstParticles(this.player.x, this.player.y, this.player.z, LEVELS[this.currentLevelIdx].theme.accentHex, 12);
+                    } else if (this.player.jumpsRemaining > 0) {
+                        this.player.vy = 12.4;
+                        this.player.jumpsRemaining--;
+                        this.player.jumpBufferTimer = 0;
+                        this.blobPhysics.velScaleY += 3.6;
+                        this.blobPhysics.velScaleX -= 2.2;
+                        this.triggerBlobImpulse(0, 1, 0.38);
+                        this.sfx.play('doubleJump');
+                        this.spawnBurstParticles(this.player.x, this.player.y - 0.5, this.player.z, 0xfbbf24, 12);
+                    }
+                }
+
+                // 6. Integrate & Resolve 2.5D Collisions on Active Z-Plane
+                this.player.wasOnGround = this.player.onGround;
+                this.player.prevVy = this.player.vy;
+                const activePlatforms = this.player.z < -4 ? this.deepPlatforms : this.frontPlatforms;
+
+                // Horizontal Step
+                this.player.x += this.player.vx * dt;
+                this.player.wallSliding = false;
+                this.player.wallDir = 0;
+
+                const hw = this.player.w / 2;
+                const hh = this.player.h / 2;
+
+                for (const plat of activePlatforms) {
+                    const pw = plat.w / 2;
+                    const ph = plat.h / 2;
+                    if (
+                        this.player.x + hw > plat.x - pw &&
+                        this.player.x - hw < plat.x + pw &&
+                        this.player.y + hh > plat.y - ph + 0.08 &&
+                        this.player.y - hh < plat.y + ph - 0.08
+                    ) {
+                        if (this.player.vx > 0) {
+                            this.player.x = plat.x - pw - hw;
+                            this.player.vx = 0;
+                            if (!this.player.onGround && this.keys.right) {
+                                this.player.wallSliding = true;
+                                this.player.wallDir = 1;
+                            }
+                        } else if (this.player.vx < 0) {
+                            this.player.x = plat.x + pw + hw;
+                            this.player.vx = 0;
+                            if (!this.player.onGround && this.keys.left) {
+                                this.player.wallSliding = true;
+                                this.player.wallDir = -1;
+                            }
+                        }
+                    }
+                }
+
+                // Vertical Step
+                this.player.y += this.player.vy * dt;
+                this.player.onGround = false;
+                let highestGroundY = -999;
+
+                for (const plat of activePlatforms) {
+                    const pw = plat.w / 2;
+                    const ph = plat.h / 2;
+
+                    if (this.player.x >= plat.x - pw && this.player.x <= plat.x + pw) {
+                        const topY = plat.y + ph;
+                        if (topY <= this.player.y - hh + 0.25 && topY > highestGroundY) {
+                            highestGroundY = topY;
+                        }
+                    }
+
+                    if (
+                        this.player.x + hw > plat.x - pw + 0.05 &&
+                        this.player.x - hw < plat.x + pw - 0.05 &&
+                        this.player.y + hh > plat.y - ph &&
+                        this.player.y - hh < plat.y + ph
+                    ) {
+                        if (this.player.vy <= 0 && (this.player.y - hh - this.player.vy * dt) >= plat.y + ph - 0.35) {
+                            this.player.y = plat.y + ph + hh;
+                            // Detect landing impact for soft-body squash wave
+                            if (!this.player.wasOnGround && this.player.prevVy < -3.0) {
+                                const impactStrength = THREE.MathUtils.clamp(Math.abs(this.player.prevVy) / 18.0, 0.15, 0.85);
+                                this.blobPhysics.velScaleY -= impactStrength * 5.8;
+                                this.blobPhysics.velScaleX += impactStrength * 4.2;
+                                this.triggerBlobImpulse(0, -1, impactStrength * 0.55);
+                            }
+                            this.player.vy = 0;
+                            this.player.onGround = true;
+                            this.player.x += plat.vx * dt;
+                            highestGroundY = plat.y + ph;
+                        } else if (this.player.vy > 0 && (this.player.y + hh - this.player.vy * dt) <= plat.y - ph + 0.35) {
+                            this.player.y = plat.y - ph - hh;
+                            this.player.vy = 0;
+                            this.triggerBlobImpulse(0, 1, 0.28);
+                        }
+                    }
+                }
+
+                // Update Ground Shadow Ring Marker (0.06m above surface)
+                if (highestGroundY > -500) {
+                    this.groundMarker.visible = true;
+                    this.groundMarker.position.set(this.player.x, highestGroundY + 0.06, this.player.z);
+                    const distFactor = THREE.MathUtils.clamp(1 - (this.player.y - hh - highestGroundY) * 0.08, 0.25, 1);
+                    this.groundMarker.scale.setScalar(distFactor * this.blobPhysics.scaleX);
+                } else {
+                    this.groundMarker.visible = false;
+                }
+
+                // 7. Jump Pads Check
+                for (const jp of this.jumpPads) {
+                    if (Math.abs(jp.z - this.player.z) < 1.0) {
+                        if (Math.abs(this.player.x - jp.x) < 0.95 && Math.abs((this.player.y - hh) - jp.y) < 0.45) {
+                            this.player.vy = jp.boostVy;
+                            this.player.onGround = false;
+                            this.player.jumpsRemaining = 1;
+                            this.blobPhysics.velScaleY += 5.0;
+                            this.blobPhysics.velScaleX -= 3.2;
+                            this.triggerBlobImpulse(0, 1, 0.5);
+                            this.sfx.play('jumpPad');
+                            this.spawnBurstParticles(jp.x, jp.y + 0.2, jp.z, 0x10b981, 14);
+                        }
+                    }
+                }
+
+                // 8. Checkpoints
+                for (const cp of this.checkpoints) {
+                    if (!cp.activated && Math.abs(cp.z - this.player.z) < 1.0) {
+                        if (Math.hypot(cp.x - this.player.x, cp.y - this.player.y) < 1.7) {
+                            cp.activated = true;
+                            cp.flagClothMat.color.setHex(0x34d399);
+                            cp.flagClothMat.emissive.setHex(0x10b981);
+                            this.setActiveCheckpointGlow(cp);
+                            this.player.checkpoint = { x: cp.x, y: cp.y + 0.5, z: cp.z };
+                            this.triggerCheckpointFlag(cp);
+                            this.sfx.play('checkpoint');
+                            this.spawnBurstParticles(cp.x, cp.y + 1.0, cp.z, 0x34d399, 16);
+                        }
+                    }
+                }
+
+                // 9. Crystals Collection (with magnetic attraction within 2.4m and 1.35m pickup radius)
+                for (const s of this.shards) {
+                    if (s.collected) continue;
+                    s.crystal.rotation.y += 2.6 * dt;
+                    // Magnetic offset eases back to zero so the shard always
+                    // returns to its audited design position
+                    s.pullX -= s.pullX * Math.min(1, 3.2 * dt);
+                    s.pullY -= s.pullY * Math.min(1, 3.2 * dt);
+                    s.x = s.baseX + s.pullX;
+                    s.y = s.baseY + s.pullY;
+                    let floatY = s.y + Math.sin(time * 3.5 + s.x) * 0.18;
+
+                    if (Math.abs(s.z - this.player.z) < 1.1) {
+                        const dist = Math.hypot(s.x - this.player.x, floatY - this.player.y);
+                        // Subtle magnetic pull when player gets close
+                        if (dist < 2.45 && dist > 0.05) {
+                            const pull = (1 - dist / 2.45) * 6.5 * dt;
+                            s.pullX += (this.player.x - s.x) * pull;
+                            s.pullY += (this.player.y - s.y) * pull;
+                            s.x = s.baseX + s.pullX;
+                            s.y = s.baseY + s.pullY;
+                            floatY = s.y;
+                        }
+                        if (dist < 1.35) {
+                            s.collected = true;
+                            s.group.visible = false;
+                            this.shardsCollected++;
+                            this.triggerBlobImpulse(0, 1, 0.22);
+                            this.sfx.play('shard');
+                            this.spawnBurstParticles(s.x, floatY, s.z, 0xfbbf24, 16);
+                        }
+                    }
+                    s.group.position.x = s.x;
+                    s.group.position.y = floatY;
+                }
+
+                // 10. Hazards Update & Collision
+                for (const h of this.hazards) {
+                    h.x = h.baseX + Math.sin(this.animTime * h.speed) * h.moveX;
+                    h.group.position.set(h.x, h.y, h.z);
+                    h.core.rotation.z -= 4.0 * dt;
+                    h.ring.rotation.x += 3.5 * dt;
+                    h.ring.rotation.y += 2.5 * dt;
+
+                    if (this.invulnerableTimer <= 0 && Math.abs(h.z - this.player.z) < 1.0) {
+                        if (Math.hypot(h.x - this.player.x, h.y - this.player.y) < 1.05) {
+                            this.damagePlayer();
+                        }
+                    }
+                }
+
+                // 11. Abyss Fall Check
+                if (this.player.y < -12) {
+                    this.damagePlayer(true);
+                }
+
+                // 12. Goal Portal Rotation & Level Complete Check
+                if (this.goalGroup) {
+                    this.goalOuterRing.rotation.z += 1.4 * dt;
+                    this.goalInnerRing.rotation.x += 2.2 * dt;
+                    this.goalInnerRing.rotation.y += 1.8 * dt;
+
+                    if (Math.abs(this.goalPos.z - this.player.z) < 1.2) {
+                        if (Math.hypot(this.goalPos.x - this.player.x, this.goalPos.y - this.player.y) < 2.1) {
+                            this.completeLevel();
+                        }
+                    }
+                }
+
+                this.syncPlayerMesh(time);
+                this.updateCamera(dt);
+                this.updateHUD();
+                this.consumeOneShotInputs();
+            }
+
+            syncPlayerMesh(time) {
+                const dt = this.lastDt || 0.016;
+                const bp = this.blobPhysics;
+
+                this.playerGroup.position.set(this.player.x, this.player.y, this.player.z);
+
+                // 1. Target Squash & Stretch based on kinematic state (volume-conserving)
+                let targetSY = 1.0;
+                let targetSX = 1.0;
+
+                if (this.player.dashTimer > 0) {
+                    targetSX = 1.38;
+                    targetSY = 0.72;
+                } else if (this.player.wallSliding) {
+                    targetSX = 0.78;
+                    targetSY = 1.24;
+                } else if (!this.player.onGround) {
+                    const vyStretch = THREE.MathUtils.clamp(Math.abs(this.player.vy) * 0.018, 0, 0.28);
+                    targetSY = 1.0 + vyStretch;
+                    targetSX = 1.0 / Math.sqrt(targetSY);
+                } else {
+                    const runSquash = Math.abs(this.player.vx) * 0.008;
+                    const breathe = Math.sin(time * 5.5) * 0.025;
+                    targetSX = 1.0 + runSquash + breathe;
+                    targetSY = 1.0 - runSquash * 0.65 - breathe;
+                }
+
+                // Spring-damper integration for global squash & stretch
+                const springK = 150.0;
+                const damping = 11.5;
+                bp.velScaleX += ((targetSX - bp.scaleX) * springK - bp.velScaleX * damping) * dt;
+                bp.velScaleY += ((targetSY - bp.scaleY) * springK - bp.velScaleY * damping) * dt;
+                bp.scaleX = THREE.MathUtils.clamp(bp.scaleX + bp.velScaleX * dt, 0.55, 1.55);
+                bp.scaleY = THREE.MathUtils.clamp(bp.scaleY + bp.velScaleY * dt, 0.52, 1.55);
+                // Preserve volume in Z
+                bp.scaleZ = THREE.MathUtils.clamp(1.0 / Math.sqrt(Math.max(0.35, bp.scaleX * bp.scaleY)), 0.68, 1.35);
+
+                // 2. Per-vertex soft-body spring-mass simulation + surface contact flattening
+                const posAttr = this.blobMesh.geometry.attributes.position;
+                const base = bp.basePositions;
+                const disp = bp.displacements;
+                const vels = bp.velocities;
+                const vCount = posAttr.count;
+                const r = bp.radius;
+                const speedNorm = Math.min(1.0, Math.hypot(this.player.vx, this.player.vy) / 14.0);
+
+                // Accumulate rolling phase from horizontal velocity
+                bp.rollAngle -= this.player.vx * dt * 1.8;
+
+                for (let i = 0; i < vCount; i++) {
+                    const bx = base[i * 3];
+                    const by = base[i * 3 + 1];
+                    const bz = base[i * 3 + 2];
+
+                    // Hookean vertex spring + viscous damping
+                    const acc = -135.0 * disp[i] - 9.2 * vels[i];
+                    vels[i] += acc * dt;
+                    disp[i] = THREE.MathUtils.clamp(disp[i] + vels[i] * dt, -0.22, 0.22);
+
+                    // Travelling organic jelly surface ripple
+                    const ripple = Math.sin(time * 8.5 + bx * 4.5 + by * 4.5 + bz * 3.5 + bp.rollAngle) * (0.014 + speedNorm * 0.024);
+                    const radialScale = 1.0 + (disp[i] + ripple) / r;
+
+                    let vx = bx * radialScale * bp.scaleX;
+                    let vy = by * radialScale * bp.scaleY;
+                    let vz = bz * radialScale * bp.scaleZ;
+
+                    // Velocity shear / aerodynamic tilt
+                    if (!this.player.onGround) {
+                        vx += (by / r) * THREE.MathUtils.clamp(this.player.vx * 0.012, -0.14, 0.14);
+                    } else {
+                        vx += (by / r) * THREE.MathUtils.clamp(this.player.vx * 0.018, -0.16, 0.16);
+                    }
+
+                    // Ground contact constraint: flatten bottom vertices nicely against the floor and bulge sides
+                    if (this.player.onGround && vy < -r * 0.72) {
+                        const penetration = (-r * 0.72) - vy;
+                        vy = Math.max(-r + 0.01, vy + penetration * 0.78);
+                        const spread = 1.0 + penetration * 0.55;
+                        vx *= spread;
+                        vz *= spread;
+                    }
+
+                    // Wall-slide contact flattening against left or right wall
+                    if (this.player.wallSliding && this.player.wallDir !== 0) {
+                        const wallSide = vx * this.player.wallDir;
+                        if (wallSide > r * 0.62) {
+                            vx = this.player.wallDir * (r * 0.62 + (wallSide - r * 0.62) * 0.25);
+                        }
+                    }
+
+                    posAttr.setXYZ(i, vx, vy, vz);
+                }
+
+                posAttr.needsUpdate = true;
+                this.blobMesh.geometry.computeVertexNormals();
+
+                // 3. Secondary inertia on the internal suspended nucleus & eyes
+                const targetCoreX = THREE.MathUtils.clamp(-this.player.vx * 0.012, -0.14, 0.14);
+                const targetCoreY = THREE.MathUtils.clamp(-this.player.vy * 0.010, -0.14, 0.14);
+                bp.coreOffset.x = THREE.MathUtils.lerp(bp.coreOffset.x, targetCoreX, 12 * dt);
+                bp.coreOffset.y = THREE.MathUtils.lerp(bp.coreOffset.y, targetCoreY, 12 * dt);
+                this.blobInnerGroup.position.set(bp.coreOffset.x, bp.coreOffset.y, 0);
+
+                // Rotate eyes smoothly toward facing direction & tilt with vertical velocity
+                const targetYaw = this.player.facing > 0 ? 0.22 : Math.PI - 0.22;
+                this.blobInnerGroup.rotation.y = THREE.MathUtils.lerp(this.blobInnerGroup.rotation.y, targetYaw, 14 * dt);
+                this.eyeCluster.position.y = THREE.MathUtils.clamp(this.player.vy * 0.008, -0.08, 0.10);
+                const eyeSquint = this.player.dashTimer > 0 ? 0.55 : (Math.abs(bp.scaleY - 1.0) > 0.18 ? 0.75 : 1.0);
+                this.eyeCluster.scale.set(1.0, eyeSquint, 1.0);
+                this.blobNucleus.rotation.x += 2.2 * dt;
+                this.blobNucleus.rotation.y += 3.1 * dt;
+
+                if (this.invulnerableTimer > 0) {
+                    this.playerGroup.visible = Math.floor(time * 18) % 2 === 0;
+                } else {
+                    this.playerGroup.visible = true;
+                }
+            }
+
+            updateCamera(dt) {
+                this.mouseParallax.x = THREE.MathUtils.lerp(this.mouseParallax.x, this.mouseParallax.targetX, 5 * dt);
+                this.mouseParallax.y = THREE.MathUtils.lerp(this.mouseParallax.y, this.mouseParallax.targetY, 5 * dt);
+
+                let offsetZ = 18.5;
+                let offsetY = 3.2;
+                let lookAheadX = this.player.vx * 0.35;
+
+                if (this.cameraMode === 1) {
+                    offsetZ = 14.5;
+                    offsetY = 1.4;
+                } else if (this.cameraMode === 2) {
+                    offsetZ = 21.0;
+                    offsetY = 6.5;
+                    lookAheadX += 4.5;
+                }
+
+                const targetCamX = this.player.x + lookAheadX + this.mouseParallax.x;
+                const targetCamY = Math.max(1.5, this.player.y + offsetY + this.mouseParallax.y);
+                const targetCamZ = this.player.z + offsetZ;
+
+                this.camera.position.x = THREE.MathUtils.lerp(this.camera.position.x, targetCamX, 5.5 * dt);
+                this.camera.position.y = THREE.MathUtils.lerp(this.camera.position.y, targetCamY, 5.5 * dt);
+                this.camera.position.z = THREE.MathUtils.lerp(this.camera.position.z, targetCamZ, 4.5 * dt);
+
+                this.camera.lookAt(
+                    this.player.x + this.player.vx * 0.15,
+                    this.player.y + 0.8,
+                    this.player.z - 1.5
+                );
+
+                this.dirLight.position.set(this.player.x + 16, this.player.y + 28, this.player.z + 20);
+                this.dirLight.target.position.set(this.player.x, this.player.y, this.player.z);
+                this.dirLight.target.updateMatrixWorld();
+            }
+
+            // --- Checkpoint Flag: switchblade fling-out + procedural wind cloth ---
+            // One flag glows at a time: light the newly reached checkpoint,
+            // retire the glow of the previously active one (it stays emerald, just unlit)
+            setActiveCheckpointGlow(cp) {
+                if (this.activeGlowCheckpoint && this.activeGlowCheckpoint !== cp) {
+                    const prev = this.activeGlowCheckpoint;
+                    prev.flagGlowing = false;
+                    if (prev.flagGlowLight) {
+                        prev.flagGroup.remove(prev.flagGlowLight);
+                        prev.flagGlowLight = null;
+                    }
+                    prev.flagClothMat.emissiveIntensity = 0.55;
+                }
+                cp.flagGlowing = true;
+                const glow = new THREE.PointLight(0x34d399, 2.2, 9);
+                glow.position.set(0.55, 0, 0.7); // just in front of the flying cloth
+                cp.flagGroup.add(glow);
+                cp.flagGlowLight = glow;
+                this.activeGlowCheckpoint = cp;
+            }
+
+            triggerCheckpointFlag(cp) {
+                if (cp.flagState !== 'idle') return;
+                cp.flagState = 'rise';
+                cp.flagT = 0;
+                cp.flagDroopVel = -6.5; // whip: droop springs up and overshoots
+                cp.flagWhip = 1;
+                this.sfx.play('flagFling');
+                this.spawnBurstParticles(cp.x, cp.y + 0.9, cp.z, 0x34d399, 10);
+            }
+
+            updateCheckpointFlags(dt, time) {
+                for (const cp of this.checkpoints) {
+                    // Whip energy decays once flying
+                    if (cp.flagWhip > 0) cp.flagWhip = Math.max(0, cp.flagWhip - dt * 0.9);
+
+                    // Glow pulse on the active checkpoint's flag
+                    if (cp.flagGlowing && cp.flagGlowLight) {
+                        const pulse = 2.0 + Math.sin(time * 4.5 + cp.x) * 0.6;
+                        cp.flagGlowLight.intensity = pulse;
+                        cp.flagClothMat.emissiveIntensity = 1.1 + Math.sin(time * 4.5 + cp.x) * 0.3;
+                    }
+
+                    if (cp.flagState === 'idle') {
+                        // Droop eases back to limp (e.g. after level rebuild)
+                        cp.flagDroop += (1 - cp.flagDroop) * Math.min(1, 2.5 * dt);
+                        cp.flagCloth.scale.x += (0.55 - cp.flagCloth.scale.x) * Math.min(1, 2.5 * dt);
+                        this.waveFlagCloth(cp, time, 0.18, 0.5);
+                        continue;
+                    }
+                    cp.flagT += dt;
+
+                    // Phase 1: droop springs from limp (1) to flying (0), whip overshoot
+                    if (cp.flagState === 'rise') {
+                        const stiffness = 70, damping = 6.5;
+                        cp.flagDroopVel += ((0 - cp.flagDroop) * stiffness - cp.flagDroopVel * damping) * dt;
+                        cp.flagDroop += cp.flagDroopVel * dt;
+                        if (cp.flagDroop < -0.35) cp.flagDroop = -0.35; // overshoot clamp
+                        this.waveFlagCloth(cp, time, 0.3, 1);
+                        if (cp.flagT > 0.15) {
+                            cp.flagState = 'unfurl';
+                            this.sfx.play('flagUnfurl');
+                        }
+                        continue;
+                    }
+
+                    // Phase 2: cloth unfurls (elastic bow-open)
+                    if (cp.flagState === 'unfurl') {
+                        // droop settle continues into this phase so it reaches exactly 0
+                        cp.flagDroopVel += ((0 - cp.flagDroop) * 70 - cp.flagDroopVel * 6.5) * dt;
+                        cp.flagDroop += cp.flagDroopVel * dt;
+                        cp.flagUnfurl = Math.min(1, cp.flagUnfurl + dt * 2.4);
+                        const e = (cp.flagUnfurl - 0.55) / 0.45; // progress 0 -> 1
+                        const ec = Math.min(1, Math.max(0, e));
+                        const overshoot = 1 + 0.5 * Math.sin(ec * Math.PI) * (1 - ec);
+                        cp.flagCloth.scale.x = Math.max(0.04, cp.flagUnfurl * overshoot);
+                        if (cp.flagUnfurl >= 1) {
+                            cp.flagCloth.scale.x = 1;
+                            cp.flagState = 'wave';
+                        }
+                    }
+
+                    // Phase 3+: full wind, boosted briefly by remaining whip.
+                    // Droop settle keeps running so the whip overshoot relaxes to exactly 0.
+                    if (cp.flagState === 'wave' || cp.flagState === 'unfurl') {
+                        cp.flagDroopVel += ((0 - cp.flagDroop) * 70 - cp.flagDroopVel * 6.5) * dt;
+                        cp.flagDroop += cp.flagDroopVel * dt;
+                        const boost = 1 + cp.flagWhip * 1.4;
+                        this.waveFlagCloth(cp, time, (cp.flagState === 'wave' ? 1 : 0.6) * boost, 1 + cp.flagWhip * 0.6);
+                    }
+                }
+            }
+
+            // Cloth: droop sag + wind waves. u = 0 hoist at pole, u = 1 free edge.
+            waveFlagCloth(cp, time, ampFactor, speedFactor) {
+                const posAttr = cp.flagClothGeo.attributes.position;
+                const base = cp.flagBasePos;
+                const count = posAttr.count;
+                const clothW = 0.95, clothH = 0.58;
+                const gust = 0.75 + 0.25 * Math.sin(time * 0.9 + cp.x * 0.7);
+                const droop = cp.flagDroop;
+                for (let i = 0; i < count; i++) {
+                    const bx = base[i * 3];
+                    const by = base[i * 3 + 1];
+                    const u = bx / clothW;                // 0 at pole, 1 at free edge
+                    const v = (by + clothH / 2) / clothH; // 0 bottom, 1 top
+                    const pin = Math.pow(u, 1.25);        // pinned at hoist edge
+                    const t = time * speedFactor;
+                    // droop: free edge sags below the hoist line, slight outward curl
+                    const sag = -droop * 0.85 * Math.pow(u, 1.6);
+                    const curl = droop > 0 ? droop * 0.15 * Math.pow(u, 2) : 0;
+                    const w1 = Math.sin(u * 6.0 - t * 7.5 + cp.x) * 0.16 * pin * gust * ampFactor;
+                    const w2 = Math.sin(u * 11.0 - t * 12.5 + v * 3.0) * 0.05 * pin * gust * ampFactor;
+                    const flutter = Math.sin(time * 21.0 + u * 17.0 + v * 9.0) * 0.012 * pin * ampFactor;
+                    posAttr.setXYZ(i, bx + curl, by + sag + (w2 * 0.4 + flutter), (w1 + w2 + flutter));
+                }
+                posAttr.needsUpdate = true;
+                cp.flagClothGeo.computeVertexNormals();
+            }
+
+            damagePlayer(fellInAbyss = false) {
+                this.sfx.play('hurt');
+                this.health--;
+                this.invulnerableTimer = 1.2;
+                this.spawnBurstParticles(this.player.x, this.player.y, this.player.z, 0xf43f5e, 20);
+
+                if (this.health <= 0) {
+                    this.health = this.maxHealth;
+                    this.respawnPlayer(false);
+                } else if (fellInAbyss) {
+                    this.respawnPlayer(false);
+                } else {
+                    this.player.vy = 8.5;
+                    this.player.vx = -this.player.facing * 7.5;
+                }
+                this.updateHUD();
+            }
+
+            completeLevel() {
+                this.isRunning = false;
+                this.sfx.play('win');
+                this.spawnBurstParticles(this.player.x, this.player.y, this.player.z, 0x34d399, 32);
+
+                if (this.currentLevelIdx < LEVELS.length - 1) {
+                    this.showModal('clear');
+                } else {
+                    this.showModal('victory');
+                }
+            }
+
+            // --- UI & HUD Updates ---
+            UpdateDepthStratumUI() {
+                const badge = this.hudEls.depthBadge;
+                const text = this.hudEls.depthText;
+                if (this.player.z < -1) {
+                    badge.className = 'inline-block w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_8px_#818cf8]';
+                    text.textContent = 'DEEP STRATUM [-8.0m]';
+                    text.className = 'font-mono-tech text-xs font-semibold text-indigo-300';
+                } else {
+                    badge.className = 'inline-block w-2 h-2 rounded-full theme-accent-bg';
+                    text.textContent = 'FOREGROUND [0.0m]';
+                    text.className = 'font-mono-tech text-xs font-semibold text-slate-100';
+                }
+            }
+
+            updateHUD() {
+                const h = this.hudEls;
+                h.shards.textContent = `${this.shardsCollected} / ${this.totalShards}`;
+
+                const mins = Math.floor(this.levelTimer / 60).toString().padStart(2, '0');
+                const secs = (this.levelTimer % 60).toFixed(1).padStart(4, '0');
+                h.timer.textContent = `${mins}:${secs}`;
+
+                const onClass = 'w-4 h-2 rounded-xs theme-accent-bg transition-all';
+                const offClass = 'w-4 h-2 rounded-xs bg-slate-800 border border-slate-700/60 transition-all';
+                for (let i = 0; i < this.healthBars.length; i++) {
+                    const bar = this.healthBars[i];
+                    if (i < this.health) {
+                        if (bar.className !== onClass) {
+                            bar.className = onClass;
+                            bar.style.boxShadow = '0 0 8px var(--theme-accent-soft)';
+                        }
+                    } else if (bar.className !== offClass) {
+                        bar.className = offClass;
+                        bar.style.boxShadow = '';
+                    }
+                }
+
+                if (h.dashBar) {
+                    const pct = Math.max(0, Math.min(1, 1 - this.player.dashCooldown / 0.65)) * 100;
+                    h.dashBar.style.width = `${pct}%`;
+                }
+            }
+
+            cycleCameraAngle() {
+                this.cameraMode = (this.cameraMode + 1) % 3;
+                const labels = ['DYNAMIC 3D', 'HERO LOW-ANGLE', 'ISOMETRIC 3D'];
+                document.getElementById('cam-mode-label').textContent = labels[this.cameraMode];
+            }
+
+            toggleMute() {
+                this.sfx.muted = !this.sfx.muted;
+                this.sfx.setVolume(this.sfx.muted ? 0 : 1);
+                document.getElementById('icon-sound-on').classList.toggle('hidden', this.sfx.muted);
+                document.getElementById('icon-sound-off').classList.toggle('hidden', !this.sfx.muted);
+            }
+
+            showModal(type) {
+                this.modalState = type;
+                const overlay = document.getElementById('modal-overlay');
+                const badge = document.getElementById('modal-badge');
+                const title = document.getElementById('modal-title');
+                const desc = document.getElementById('modal-desc');
+                const stats = document.getElementById('modal-stats');
+                const features = document.getElementById('modal-features');
+                const controls = document.getElementById('modal-controls');
+                const primaryBtn = document.getElementById('modal-primary-btn');
+                const secondaryBtn = document.getElementById('modal-secondary-btn');
+
+                const lvl = LEVELS[this.currentLevelIdx];
+                overlay.classList.remove('opacity-0', 'pointer-events-none');
+
+                const mins = Math.floor(this.levelTimer / 60).toString().padStart(2, '0');
+                const secs = (this.levelTimer % 60).toFixed(1).padStart(4, '0');
+
+                if (type === 'intro') {
+                    badge.textContent = '2.5D PERSPECTIVE PLATFORMER';
+                    title.textContent = lvl.name;
+                    desc.textContent = lvl.subtitle + ' — Traverse foreground and background Z-planes, collect energy shards, and reach the Ascendant Warp Core.';
+                    stats.classList.add('hidden');
+                    stats.classList.remove('grid');
+                    features.classList.remove('hidden');
+                    controls.classList.remove('hidden');
+                    primaryBtn.textContent = 'START SECTOR';
+                    secondaryBtn.classList.add('hidden');
+                } else if (type === 'clear') {
+                    badge.textContent = 'SECTOR COMPLETE';
+                    title.textContent = `${lvl.name} CLEARED!`;
+                    desc.textContent = 'Quantum coordinates locked for the next architectural sector.';
+                    stats.classList.remove('hidden');
+                    stats.classList.add('grid');
+                    features.classList.add('hidden');
+                    controls.classList.add('hidden');
+
+                    document.getElementById('stat-time').textContent = `${mins}:${secs}`;
+                    document.getElementById('stat-shards').textContent = `${this.shardsCollected} / ${this.totalShards}`;
+                    document.getElementById('stat-rank').textContent = this.shardsCollected === this.totalShards ? 'S+ PERFECT' : 'A-RANK';
+
+                    primaryBtn.textContent = `PROCEED TO SECTOR 0${this.currentLevelIdx + 2}`;
+                    secondaryBtn.classList.remove('hidden');
+                } else if (type === 'victory') {
+                    badge.textContent = 'ALL 3 SECTORS CONQUERED';
+                    title.textContent = 'ASCENDANT MASTER';
+                    desc.textContent = 'You have conquered the Neon Citadel, Solar Foundry, and Astral Singularity across all Z-depth strata!';
+                    stats.classList.remove('hidden');
+                    stats.classList.add('grid');
+                    features.classList.add('hidden');
+                    controls.classList.add('hidden');
+
+                    document.getElementById('stat-time').textContent = `${mins}:${secs}`;
+                    document.getElementById('stat-shards').textContent = `${this.shardsCollected} / ${this.totalShards}`;
+                    document.getElementById('stat-rank').textContent = 'GRANDMASTER';
+
+                    primaryBtn.textContent = 'PLAY FROM SECTOR 01';
+                    secondaryBtn.classList.remove('hidden');
+                }
+            }
+
+            hideModal() {
+                const overlay = document.getElementById('modal-overlay');
+                overlay.classList.add('opacity-0', 'pointer-events-none');
+            }
+
+            handleModalPrimary() {
+                this.sfx.init();
+                if (this.modalState === 'intro') {
+                    this.hideModal();
+                    this.isRunning = true;
+                } else if (this.modalState === 'clear') {
+                    this.loadLevel(this.currentLevelIdx + 1, false);
+                } else if (this.modalState === 'victory') {
+                    this.loadLevel(0, false);
+                }
+            }
+
+            consumeOneShotInputs() {
+                this.keys.jumpJustPressed = false;
+                this.keys.dashJustPressed = false;
+                this.keys.depthJustPressed = false;
+            }
+
+            onWindowResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            render() {
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        // --- Bootstrap Game on Window Load ---
+        let game = null;
+        let lastFrameTime = performance.now();
+
+        function animateLoop(now) {
+            requestAnimationFrame(animateLoop);
+            const dt = (now - lastFrameTime) / 1000;
+            lastFrameTime = now;
+            if (game) {
+                game.update(dt);
+                game.render();
+            }
+        }
+
+        window.onload = function () {
+            game = new StrataPlatformer();
+            lastFrameTime = performance.now();
+            animateLoop(lastFrameTime);
+        };
+    </script>
+</body>
+</html>
